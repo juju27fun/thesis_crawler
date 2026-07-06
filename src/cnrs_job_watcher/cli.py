@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -13,14 +14,23 @@ from cnrs_job_watcher.classify import apply_classification
 from cnrs_job_watcher.evaluation import load_evaluation_cases, run_evaluation
 from cnrs_job_watcher.export import export_csv, export_markdown
 from cnrs_job_watcher.fetch import CnrsClient
+from cnrs_job_watcher.llm_classifier import (
+    ClassifierMode,
+    LlmProvider,
+    classify_offer_hybrid,
+    provider_from_env,
+)
 from cnrs_job_watcher.parse import parse_list_page, parse_offer_detail
 from cnrs_job_watcher.profiles import SearchProfile, dedupe_offers, filter_offers_by_profile
+from cnrs_job_watcher.schemas import JobOffer
 from cnrs_job_watcher.storage import (
     audit_counts,
     connect,
     finish_run,
+    get_llm_cache,
     latest_run_started_at,
     record_offer_snapshot,
+    set_llm_cache,
     shortlist,
     start_run,
     upsert_offer,
@@ -49,6 +59,10 @@ def crawl(
         SearchProfile.ALL_PUBLIC,
         help="Profil de recherche logique du run.",
     ),
+    classifier: ClassifierMode = typer.Option(
+        ClassifierMode.RULES,
+        help="Classifieur à utiliser: rules, llm ou hybrid.",
+    ),
 ) -> None:
     """Récupère les offres publiques CNRS, parse les détails, classe et stocke."""
     discovered = []
@@ -58,6 +72,9 @@ def crawl(
     errors_count = 0
     connection = connect(db)
     run_id = start_run(connection, profile=profile.value)
+    llm_provider = provider_from_env() if classifier != ClassifierMode.RULES else None
+    if classifier != ClassifierMode.RULES and llm_provider is None:
+        console.print("[yellow]OPENAI_API_KEY absent; fallback règles seules.[/yellow]")
 
     try:
         with CnrsClient(cache_dir=raw_dir) as client:
@@ -83,8 +100,11 @@ def crawl(
                     detail_html = client.fetch_offer_page(url, use_cache=not no_cache)
                     content_hash = hashlib.sha256(detail_html.encode("utf-8")).hexdigest()
                     offer = parse_offer_detail(detail_html, url)
-                    offer = apply_classification(
-                        offer.model_copy(update={"content_hash": content_hash})
+                    offer = _classify_offer(
+                        offer.model_copy(update={"content_hash": content_hash}),
+                        mode=classifier,
+                        provider=llm_provider,
+                        connection=connection,
                     )
                     upsert_offer(connection, offer)
                     record_offer_snapshot(
@@ -292,3 +312,43 @@ def digest(
     export_markdown(offers, output_path)
     scope = "nouvelles offres" if only_new else "shortlist complète"
     console.print(f"[green]Digest[/green] {output_path} ({len(offers)} {scope}).")
+
+
+class _CachingLlmProvider:
+    def __init__(
+        self,
+        connection: object,
+        provider: LlmProvider,
+        content_hash: str,
+        classifier_version: str,
+    ) -> None:
+        self.connection = connection
+        self.provider = provider
+        self.content_hash = content_hash
+        self.classifier_version = classifier_version
+
+    def classify(self, offer: JobOffer, schema: dict[str, object]) -> Mapping[str, object]:
+        cached = get_llm_cache(self.connection, self.content_hash, self.classifier_version)
+        if cached is not None:
+            return cached
+        response = self.provider.classify(offer, schema)
+        set_llm_cache(self.connection, self.content_hash, self.classifier_version, response)
+        return response
+
+
+def _classify_offer(
+    offer: JobOffer,
+    *,
+    mode: ClassifierMode,
+    provider: LlmProvider | None,
+    connection: object,
+) -> JobOffer:
+    if mode == ClassifierMode.RULES or provider is None or not offer.content_hash:
+        return apply_classification(offer)
+    cached_provider = _CachingLlmProvider(
+        connection,
+        provider,
+        offer.content_hash,
+        "hybrid-llm-v1",
+    )
+    return classify_offer_hybrid(offer, cached_provider)

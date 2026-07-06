@@ -5,6 +5,7 @@ from pathlib import Path
 from cnrs_job_watcher.classify import apply_classification
 from cnrs_job_watcher.evaluation import load_evaluation_cases, run_evaluation
 from cnrs_job_watcher.export import export_markdown
+from cnrs_job_watcher.llm_classifier import classification_json_schema, classify_offer_hybrid
 from cnrs_job_watcher.parse import parse_list_page, parse_offer_detail
 from cnrs_job_watcher.profiles import SearchProfile, dedupe_offers, filter_offers_by_profile
 from cnrs_job_watcher.schemas import JobOffer
@@ -12,8 +13,10 @@ from cnrs_job_watcher.storage import (
     audit_counts,
     connect,
     finish_run,
+    get_llm_cache,
     latest_run_started_at,
     record_offer_snapshot,
+    set_llm_cache,
     shortlist,
     start_run,
     upsert_offer,
@@ -185,6 +188,61 @@ def test_classification_targets_bac5_it_ai_cdd() -> None:
     assert classified.ai_category == "ml_deep_learning"
 
 
+def test_llm_classifier_accepts_valid_structured_response() -> None:
+    class FakeProvider:
+        def classify(self, offer: JobOffer, schema: dict[str, object]) -> dict[str, object]:
+            assert schema == classification_json_schema()
+            return {
+                "is_target": True,
+                "target_bucket": "primary_target",
+                "ai_domain": "generative_ai",
+                "accessibility": "bac5_accessible",
+                "relevance_score": 0.93,
+                "short_summary": "Thèse sur modèles génératifs.",
+                "reason": "Sujet explicitement centré sur IA générative.",
+                "risk_flags": [],
+            }
+
+    offer = JobOffer(
+        url="https://emploi.cnrs.fr/Offres/Doctorant/UMR6074-NICKER-008/Default.aspx",
+        reference="UMR6074-NICKER-008",
+        title="Thèse modèles génératifs",
+        contract_type="CDD Doctorant",
+        education_level="BAC+5",
+        description="Modèles génératifs et diffusion.",
+        raw_text="IA générative",
+    )
+
+    classified = classify_offer_hybrid(offer, FakeProvider())
+
+    assert classified.classifier_version == "hybrid-llm-v1"
+    assert classified.target_bucket == "primary_target"
+    assert classified.ai_relevance_score == 0.93
+    assert classified.short_summary == "Thèse sur modèles génératifs."
+
+
+def test_llm_classifier_invalid_response_keeps_rules_decision_for_review() -> None:
+    class InvalidProvider:
+        def classify(self, offer: JobOffer, schema: dict[str, object]) -> dict[str, object]:
+            return {"target_bucket": "primary_target"}
+
+    offer = JobOffer(
+        url="https://emploi.cnrs.fr/Offres/CDD/UMR5549-LESMAR-016/Default.aspx",
+        reference="UMR5549-LESMAR-016",
+        title="Ingénieur d'étude en Intelligence artificielle",
+        contract_type="IT en contrat CDD",
+        education_level="BAC+5",
+        description="Deep learning, PyTorch et réseaux de neurones.",
+        raw_text="Machine learning et intelligence artificielle.",
+    )
+
+    classified = classify_offer_hybrid(offer, InvalidProvider())
+
+    assert classified.is_target is True
+    assert classified.target_bucket == "adjacent_review"
+    assert "llm_invalid_response" in classified.risk_flags
+
+
 def test_sqlite_migration_and_shortlist_use_is_target(tmp_path: Path) -> None:
     db_path = tmp_path / "existing.sqlite"
     connection = connect(db_path)
@@ -310,6 +368,25 @@ def test_run_snapshot_and_digest_export(tmp_path: Path) -> None:
     )
 
 
+def test_llm_cache_round_trips_by_content_hash(tmp_path: Path) -> None:
+    connection = connect(tmp_path / "llm-cache.sqlite")
+    payload = {
+        "is_target": True,
+        "target_bucket": "secondary_target",
+        "ai_domain": "ml_deep_learning",
+        "accessibility": "bac5_accessible",
+        "relevance_score": 0.88,
+        "short_summary": "Ingénierie IA.",
+        "reason": "CDD BAC+5 avec deep learning.",
+        "risk_flags": [],
+    }
+
+    set_llm_cache(connection, "hash-1", "hybrid-llm-v1", payload)
+
+    assert get_llm_cache(connection, "hash-1", "hybrid-llm-v1") == payload
+    assert get_llm_cache(connection, "hash-2", "hybrid-llm-v1") is None
+
+
 def test_sqlite_migration_adds_target_columns_to_existing_database(tmp_path: Path) -> None:
     db_path = tmp_path / "legacy.sqlite"
     legacy = sqlite3.connect(db_path)
@@ -360,6 +437,9 @@ def test_sqlite_migration_adds_target_columns_to_existing_database(tmp_path: Pat
         "content_hash",
         "last_classified_at",
     }.issubset(columns)
+    assert connection.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'llm_cache'"
+    ).fetchone()
 
 
 def test_evaluation_dataset_matches_current_classifier() -> None:

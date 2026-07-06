@@ -20,6 +20,7 @@ et exporte une shortlist exploitable en Markdown et CSV.
 uv sync
 uv run cnrs-jobs crawl --limit-pages 2 --limit-offers 25
 uv run cnrs-jobs crawl --profile doctorant --limit-pages 2
+uv run cnrs-jobs crawl --classifier hybrid --limit-pages 1 --limit-offers 10
 uv run cnrs-jobs export
 ```
 
@@ -52,6 +53,10 @@ téléchargement des pages détail. Le formulaire CNRS expose bien des valeurs s
 `DOCTOR`, `ITCDD` et `CHRCDD`, mais le POST filtré dépend du comportement ASP.NET/JavaScript ;
 le crawler conserve donc le parcours public général comme source robuste, puis applique ces profils
 localement.
+
+Le classifieur par défaut est `rules`, sans appel externe. Le mode `hybrid` utilise
+`OPENAI_API_KEY` quand elle est disponible, valide la réponse par JSON Schema strict, puis met en
+cache la décision par hash HTML de l'offre. Sans clé API, il retombe sur les règles locales.
 
 ## Development contract
 

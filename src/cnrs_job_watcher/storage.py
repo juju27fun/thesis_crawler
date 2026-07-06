@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -79,6 +79,17 @@ def initialize(connection: sqlite3.Connection) -> None:
             raw_path TEXT,
             run_id INTEGER,
             FOREIGN KEY(run_id) REFERENCES runs(id)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS llm_cache (
+            content_hash TEXT NOT NULL,
+            classifier_version TEXT NOT NULL,
+            response_json TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            PRIMARY KEY (content_hash, classifier_version)
         )
         """
     )
@@ -344,6 +355,48 @@ def top_scores(connection: sqlite3.Connection, limit: int = 5) -> list[dict[str,
         (limit,),
     ).fetchall()
     return [dict(row) for row in rows]
+
+
+def get_llm_cache(
+    connection: sqlite3.Connection,
+    content_hash: str,
+    classifier_version: str,
+) -> dict[str, object] | None:
+    row = connection.execute(
+        """
+        SELECT response_json
+        FROM llm_cache
+        WHERE content_hash = ? AND classifier_version = ?
+        """,
+        (content_hash, classifier_version),
+    ).fetchone()
+    if not row:
+        return None
+    return json.loads(row["response_json"])
+
+
+def set_llm_cache(
+    connection: sqlite3.Connection,
+    content_hash: str,
+    classifier_version: str,
+    response: Mapping[str, object],
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO llm_cache (content_hash, classifier_version, response_json, created_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(content_hash, classifier_version) DO UPDATE SET
+            response_json = excluded.response_json,
+            created_at = excluded.created_at
+        """,
+        (
+            content_hash,
+            classifier_version,
+            json.dumps(response, ensure_ascii=False),
+            datetime.now(UTC).isoformat(),
+        ),
+    )
+    connection.commit()
 
 
 def all_offers(connection: sqlite3.Connection) -> Iterable[JobOffer]:
