@@ -3,7 +3,14 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-from cnrs_job_watcher.schemas import JobOffer
+from cnrs_job_watcher.schemas import JobOffer, TargetBucket
+
+BUCKET_TITLES: dict[TargetBucket, str] = {
+    "primary_target": "Très pertinentes",
+    "secondary_target": "Pertinentes",
+    "adjacent_review": "À vérifier",
+    "exclude": "Exclues",
+}
 
 
 def export_markdown(offers: list[JobOffer], output: Path) -> None:
@@ -11,24 +18,34 @@ def export_markdown(offers: list[JobOffer], output: Path) -> None:
     lines = ["# Offres CNRS IA / ML accessibles BAC+5", ""]
     if not offers:
         lines.append("Aucune offre pertinente dans la base locale pour le seuil demandé.")
-    for offer in offers:
-        score = f"{offer.ai_relevance_score:.2f}" if offer.ai_relevance_score is not None else "n/a"
-        lines.extend(
-            [
-                f"## {offer.title}",
-                "",
-                f"- Type : {offer.contract_type or 'n/a'}",
-                f"- Durée : {offer.duration or 'n/a'}",
-                f"- Niveau : {offer.education_level or 'n/a'}",
-                f"- Lieu : {offer.location or 'n/a'}",
-                f"- Labo : {offer.lab or 'n/a'}",
-                f"- Publication : {offer.published_at_text or 'n/a'}",
-                f"- Score : {score}",
-                f"- Pourquoi : {offer.ai_reason or 'n/a'}",
-                f"- Lien : {offer.url}",
-                "",
-            ]
-        )
+    for bucket, title in BUCKET_TITLES.items():
+        bucket_offers = [offer for offer in offers if offer.target_bucket == bucket]
+        if not bucket_offers:
+            continue
+        lines.extend([f"## {title}", ""])
+        for offer in bucket_offers:
+            score = (
+                f"{offer.ai_relevance_score:.2f}" if offer.ai_relevance_score is not None else "n/a"
+            )
+            flags = ", ".join(offer.risk_flags) if offer.risk_flags else "aucun"
+            lines.extend(
+                [
+                    f"### {offer.title}",
+                    "",
+                    f"- Type : {offer.contract_type or 'n/a'}",
+                    f"- Durée : {offer.duration or 'n/a'}",
+                    f"- Niveau : {offer.education_level or 'n/a'}",
+                    f"- Lieu : {offer.location or 'n/a'}",
+                    f"- Labo : {offer.lab or 'n/a'}",
+                    f"- Publication : {offer.published_at_text or 'n/a'}",
+                    f"- Score : {score}",
+                    f"- Résumé : {offer.short_summary or 'n/a'}",
+                    f"- Pourquoi : {offer.ai_reason or 'n/a'}",
+                    f"- Flags : {flags}",
+                    f"- Lien : {offer.url}",
+                    "",
+                ]
+            )
     output.write_text("\n".join(lines), encoding="utf-8")
 
 
@@ -38,6 +55,9 @@ def export_csv(offers: list[JobOffer], output: Path) -> None:
         writer = csv.DictWriter(
             handle,
             fieldnames=[
+                "reference",
+                "bucket",
+                "score",
                 "title",
                 "contract_type",
                 "duration",
@@ -45,16 +65,20 @@ def export_csv(offers: list[JobOffer], output: Path) -> None:
                 "location",
                 "lab",
                 "published_at_text",
-                "url",
-                "score",
                 "category",
+                "summary",
                 "reason",
+                "flags",
+                "url",
             ],
         )
         writer.writeheader()
         for offer in offers:
             writer.writerow(
                 {
+                    "reference": offer.reference,
+                    "bucket": offer.target_bucket,
+                    "score": offer.ai_relevance_score,
                     "title": offer.title,
                     "contract_type": offer.contract_type,
                     "duration": offer.duration,
@@ -62,9 +86,10 @@ def export_csv(offers: list[JobOffer], output: Path) -> None:
                     "location": offer.location,
                     "lab": offer.lab,
                     "published_at_text": offer.published_at_text,
-                    "url": str(offer.url),
-                    "score": offer.ai_relevance_score,
                     "category": offer.ai_category,
+                    "summary": offer.short_summary,
                     "reason": offer.ai_reason,
+                    "flags": ",".join(offer.risk_flags),
+                    "url": str(offer.url),
                 }
             )

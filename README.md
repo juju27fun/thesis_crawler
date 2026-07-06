@@ -35,8 +35,31 @@ Sorties par défaut :
 uv run cnrs-jobs crawl --limit-pages 13
 uv run cnrs-jobs export --format markdown --output cnrs_ia_jobs.md
 uv run cnrs-jobs export --format csv --output cnrs_ia_jobs.csv
+uv run cnrs-jobs audit
 ```
 
 Le crawler respecte les zones publiques du site et limite volontairement le rythme des requêtes.
 L'IA générative n'est pas utilisée comme crawler : elle doit rester une étape de classification
 sémantique optionnelle après extraction.
+
+## Development contract
+
+Avant de livrer une modification du pipeline, lancer au minimum :
+
+```bash
+uv run ruff check .
+uv run pytest
+```
+
+Pour valider le comportement réel CNRS sur un petit échantillon :
+
+```bash
+uv run cnrs-jobs crawl --limit-pages 1 --limit-offers 5 \
+  --db /tmp/cnrs_smoke.sqlite \
+  --raw-dir /tmp/cnrs_smoke_raw \
+  --no-cache
+uv run cnrs-jobs export --db /tmp/cnrs_smoke.sqlite --min-score 0.25
+uv run cnrs-jobs audit --db /tmp/cnrs_smoke.sqlite
+```
+
+Les bases SQLite, snapshots HTML et exports générés restent hors Git.

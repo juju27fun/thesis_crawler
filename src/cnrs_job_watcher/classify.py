@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from cnrs_job_watcher.schemas import Classification, JobOffer
+from cnrs_job_watcher.schemas import Accessibility, Classification, JobOffer, TargetBucket
+
+CLASSIFIER_VERSION = "rules-v2"
 
 STRONG_TERMS = {
     "machine learning": "machine learning",
@@ -52,6 +54,23 @@ NEGATIVE_TERMS = {
     "charge de communication",
 }
 
+POSTDOC_TERMS = {
+    "post-doctorant",
+    "post doctorant",
+    "postdoctorant",
+    "post-doctoral",
+    "postdoctoral",
+    "postdoc",
+}
+
+DOCTORATE_REQUIRED_TERMS = {
+    "doctorat requis",
+    "doctorat exigé",
+    "doctorat exige",
+    "phd required",
+    "ph.d. required",
+}
+
 
 def classify_offer(offer: JobOffer) -> Classification:
     text = " ".join(
@@ -67,7 +86,7 @@ def classify_offer(offer: JobOffer) -> Classification:
         if value
     ).lower()
 
-    hard_filter_passed, target_type, accessibility = hard_filter(offer, text)
+    hard_filter_passed, target_type, accessibility, eligibility_exclusion = hard_filter(offer, text)
     strong_hits = [label for term, label in STRONG_TERMS.items() if term in text]
     adjacent_hits = [label for term, label in ADJACENT_TERMS.items() if term in text]
     negative_hits = [term for term in NEGATIVE_TERMS if term in text]
@@ -77,7 +96,7 @@ def classify_offer(offer: JobOffer) -> Classification:
         score += 0.25
     score += min(len(strong_hits) * 0.14, 0.56)
     score += min(len(adjacent_hits) * 0.06, 0.18)
-    if _is_thesis(offer, text):
+    if _is_thesis(offer):
         score += 0.08
     if negative_hits:
         score -= 0.25
@@ -100,15 +119,37 @@ def classify_offer(offer: JobOffer) -> Classification:
     else:
         domain = "not_relevant"
 
-    is_target = hard_filter_passed and score >= 0.35 and domain != "not_relevant"
-    reason = _build_reason(strong_hits, adjacent_hits, negative_hits, hard_filter_passed, offer)
+    target_bucket, is_target, exclusion_reason, risk_flags = _decide_bucket(
+        offer=offer,
+        hard_filter_passed=hard_filter_passed,
+        target_type=target_type,
+        accessibility=accessibility,
+        domain=domain,
+        score=score,
+        negative_hits=negative_hits,
+        eligibility_exclusion=eligibility_exclusion,
+    )
+    reason = _build_reason(
+        strong_hits,
+        adjacent_hits,
+        negative_hits,
+        hard_filter_passed,
+        offer,
+        exclusion_reason,
+    )
+    short_summary = _build_short_summary(offer, domain, target_bucket)
 
     return Classification(
         is_target=is_target,
         target_type=target_type,
         ai_domain=domain,
+        target_bucket=target_bucket,
         relevance_score=score,
         accessibility=accessibility,
+        exclusion_reason=exclusion_reason,
+        short_summary=short_summary,
+        risk_flags=risk_flags,
+        classifier_version=CLASSIFIER_VERSION,
         reason=reason,
     )
 
@@ -118,6 +159,13 @@ def apply_classification(offer: JobOffer) -> JobOffer:
     return offer.model_copy(
         update={
             "hard_filter_passed": classification.target_type != "not_target",
+            "is_target": classification.is_target,
+            "target_bucket": classification.target_bucket,
+            "accessibility": classification.accessibility,
+            "exclusion_reason": classification.exclusion_reason,
+            "short_summary": classification.short_summary,
+            "risk_flags": classification.risk_flags,
+            "classifier_version": classification.classifier_version,
             "ai_relevance_score": classification.relevance_score,
             "ai_category": classification.ai_domain,
             "ai_reason": classification.reason,
@@ -125,37 +173,100 @@ def apply_classification(offer: JobOffer) -> JobOffer:
     )
 
 
-def hard_filter(offer: JobOffer, text: str | None = None) -> tuple[bool, str, str]:
+def hard_filter(
+    offer: JobOffer,
+    text: str | None = None,
+) -> tuple[bool, str, Accessibility, str | None]:
     text = text or " ".join(
         [offer.title, offer.contract_type or "", offer.education_level or ""]
     ).lower()
     contract = (offer.contract_type or "").lower()
     education = (offer.education_level or "").lower()
+    structured_text = _structured_text(offer)
 
-    if _is_thesis(offer, text):
+    if _is_postdoc_or_doctorate_required(text, structured_text):
+        return False, "not_target", "doctorate_required", "doctorate_required"
+
+    if _is_thesis(offer):
         accessibility = (
             "bac5_accessible" if "bac+5" in education or "doctorant" in contract else "unclear"
         )
-        return True, "thesis_or_bac5_cdd", accessibility
+        return True, "thesis_or_bac5_cdd", accessibility, None
 
     is_cdd = "cdd" in contract
     is_it = "it" in contract or "ingénieur" in text or "ingenieur" in text
     is_bac5 = "bac+5" in education or "bac +5" in text or "master" in text
-    doctorate_required = any(
-        term in text for term in ["doctorat requis", "phd required", "post-doctor", "postdoctor"]
+
+    if is_cdd and is_it and is_bac5:
+        return True, "bac5_cdd", "bac5_accessible", None
+    return False, "not_target", "unclear", "not_contract_or_level_target"
+
+
+def _is_thesis(offer: JobOffer) -> bool:
+    contract = (offer.contract_type or "").lower()
+    title = offer.title.lower()
+    url = str(offer.url).lower()
+    if any(term in contract for term in ["cdd doctorant", "contrat doctoral", "doctorant"]):
+        return True
+    if any(term in title for term in ["thèse", "these", "doctorant", "contrat doctoral"]):
+        return True
+    return "/offres/doctorant/" in url
+
+
+def _structured_text(offer: JobOffer) -> str:
+    values = [offer.title, offer.contract_type or "", offer.education_level or "", str(offer.url)]
+    return " ".join(
+        value
+        for value in values
+        if value
+    ).lower()
+
+
+def _is_postdoc_or_doctorate_required(text: str, structured_text: str) -> bool:
+    return any(term in text for term in DOCTORATE_REQUIRED_TERMS) or any(
+        term in structured_text for term in POSTDOC_TERMS
     )
 
-    if is_cdd and is_it and is_bac5 and not doctorate_required:
-        return True, "bac5_cdd", "bac5_accessible"
-    if doctorate_required:
-        return False, "not_target", "doctorate_required"
-    return False, "not_target", "unclear"
 
+def _decide_bucket(
+    *,
+    offer: JobOffer,
+    hard_filter_passed: bool,
+    target_type: str,
+    accessibility: Accessibility,
+    domain: str,
+    score: float,
+    negative_hits: list[str],
+    eligibility_exclusion: str | None,
+) -> tuple[TargetBucket, bool, str | None, list[str]]:
+    risk_flags: list[str] = []
+    if accessibility == "doctorate_required":
+        risk_flags.append("doctorate_required")
+    if "bac+3" in (offer.education_level or "").lower() or "bac+4" in (
+        offer.education_level or ""
+    ).lower():
+        risk_flags.append("bac3_4")
+    if offer.unavailable:
+        risk_flags.append("expired_or_unavailable")
 
-def _is_thesis(offer: JobOffer, text: str) -> bool:
-    contract = (offer.contract_type or "").lower()
-    thesis_terms = ["thèse", "these", "doctorant", "contrat doctoral", "phd"]
-    return any(term in text for term in thesis_terms) or "doctorant" in contract
+    if offer.unavailable:
+        return "exclude", False, "expired_or_unavailable", risk_flags
+    if accessibility == "doctorate_required":
+        risk_flags.append("postdoc")
+        return "exclude", False, "doctorate_required_or_postdoc", risk_flags
+    if negative_hits:
+        return "exclude", False, f"negative_signal:{negative_hits[0]}", risk_flags
+    if domain == "not_relevant":
+        return "exclude", False, "no_ai_ml_signal", risk_flags
+    if score < 0.35:
+        return "exclude", False, "score_below_threshold", risk_flags
+    if target_type == "thesis_or_bac5_cdd":
+        return "primary_target", True, None, risk_flags
+    if target_type == "bac5_cdd":
+        return "secondary_target", True, None, risk_flags
+    if domain in {"ml_deep_learning", "generative_ai"} and score >= 0.35:
+        return "adjacent_review", True, eligibility_exclusion, risk_flags
+    return "exclude", False, eligibility_exclusion or "not_target", risk_flags
 
 
 def _build_reason(
@@ -164,7 +275,10 @@ def _build_reason(
     negative_hits: list[str],
     hard_filter_passed: bool,
     offer: JobOffer,
+    exclusion_reason: str | None,
 ) -> str:
+    if exclusion_reason:
+        return f"Exclue: {exclusion_reason}."
     if negative_hits:
         return f"Signal d'exclusion potentiel ({negative_hits[0]}) malgré quelques mots-clés."
     if strong_hits:
@@ -176,3 +290,15 @@ def _build_reason(
     if offer.unavailable:
         return "Offre indisponible sur le portail CNRS."
     return "Aucun signal IA/ML fort détecté."
+
+
+def _build_short_summary(offer: JobOffer, domain: str, bucket: TargetBucket) -> str:
+    label = {
+        "generative_ai": "IA générative",
+        "ml_deep_learning": "IA/ML",
+        "general_ai": "IA",
+        "data_science_adjacent": "data science adjacente",
+        "not_relevant": "hors cible IA/ML",
+    }[domain]
+    contract = offer.contract_type or "contrat non précisé"
+    return f"{contract} classé {bucket} pour {label}."

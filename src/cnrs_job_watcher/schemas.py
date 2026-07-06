@@ -13,6 +13,9 @@ AiCategory = Literal[
     "not_relevant",
 ]
 
+TargetBucket = Literal["primary_target", "secondary_target", "adjacent_review", "exclude"]
+Accessibility = Literal["bac5_accessible", "doctorate_required", "unclear", "not_accessible"]
+
 
 class ListPageStats(BaseModel):
     total_offers: int | None = None
@@ -36,6 +39,13 @@ class JobOffer(BaseModel):
     raw_text: str = ""
     unavailable: bool = False
     hard_filter_passed: bool = False
+    is_target: bool = False
+    target_bucket: TargetBucket = "exclude"
+    accessibility: Accessibility = "unclear"
+    exclusion_reason: str | None = None
+    short_summary: str | None = None
+    risk_flags: list[str] = Field(default_factory=list)
+    classifier_version: str = "rules-v1"
     ai_relevance_score: float | None = Field(default=None, ge=0, le=1)
     ai_category: AiCategory | None = None
     ai_reason: str | None = None
@@ -47,7 +57,11 @@ class Classification(BaseModel):
     is_target: bool
     target_type: Literal["thesis_or_bac5_cdd", "bac5_cdd", "not_target"]
     ai_domain: AiCategory
+    target_bucket: TargetBucket
     relevance_score: float = Field(ge=0, le=1)
-    accessibility: Literal["bac5_accessible", "doctorate_required", "unclear", "not_accessible"]
+    accessibility: Accessibility
+    exclusion_reason: str | None = None
+    short_summary: str | None = None
+    risk_flags: list[str] = Field(default_factory=list)
+    classifier_version: str = "rules-v1"
     reason: str
-

@@ -5,12 +5,13 @@ from pathlib import Path
 import typer
 from rich.console import Console
 from rich.progress import track
+from rich.table import Table
 
 from cnrs_job_watcher.classify import apply_classification
 from cnrs_job_watcher.export import export_csv, export_markdown
 from cnrs_job_watcher.fetch import CnrsClient
 from cnrs_job_watcher.parse import parse_list_page, parse_offer_detail
-from cnrs_job_watcher.storage import connect, shortlist, upsert_offer
+from cnrs_job_watcher.storage import audit_counts, connect, shortlist, upsert_offer
 
 app = typer.Typer(no_args_is_help=True)
 console = Console()
@@ -88,3 +89,29 @@ def export_command(
         console.print(f"[green]CSV[/green] {csv_output}")
 
     console.print(f"{len(offers)} offres exportées.")
+
+
+@app.command()
+def audit(
+    db: Path = typer.Option(Path("data/cnrs_jobs.sqlite"), help="Base SQLite locale."),
+) -> None:
+    """Affiche les compteurs qualité du dernier état local."""
+    connection = connect(db)
+    counts = audit_counts(connection)
+
+    console.print(f"[bold]Offres en base[/bold] {counts['total']}")
+    console.print(f"[bold]Indisponibles[/bold] {counts['unavailable']}")
+
+    bucket_table = Table(title="Buckets")
+    bucket_table.add_column("Bucket")
+    bucket_table.add_column("Offres", justify="right")
+    for bucket, count in dict(counts["by_bucket"]).items():
+        bucket_table.add_row(str(bucket), str(count))
+    console.print(bucket_table)
+
+    exclusion_table = Table(title="Exclusions")
+    exclusion_table.add_column("Raison")
+    exclusion_table.add_column("Offres", justify="right")
+    for reason, count in dict(counts["by_exclusion_reason"]).items():
+        exclusion_table.add_row(str(reason), str(count))
+    console.print(exclusion_table)
