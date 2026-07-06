@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from cnrs_job_watcher.schemas import Accessibility, Classification, JobOffer, TargetBucket
 
 CLASSIFIER_VERSION = "rules-v2"
@@ -166,6 +168,7 @@ def apply_classification(offer: JobOffer) -> JobOffer:
             "short_summary": classification.short_summary,
             "risk_flags": classification.risk_flags,
             "classifier_version": classification.classifier_version,
+            "last_classified_at": datetime.now(UTC),
             "ai_relevance_score": classification.relevance_score,
             "ai_category": classification.ai_domain,
             "ai_reason": classification.reason,

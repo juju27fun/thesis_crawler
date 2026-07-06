@@ -26,6 +26,7 @@ Sorties par défaut :
 
 - `data/cnrs_jobs.sqlite`
 - `data/raw/*.html`
+- `data/digests/YYYY-MM-DD.md`
 - `cnrs_ia_jobs.md`
 - `cnrs_ia_jobs.csv`
 
@@ -36,6 +37,7 @@ uv run cnrs-jobs crawl --limit-pages 13
 uv run cnrs-jobs export --format markdown --output cnrs_ia_jobs.md
 uv run cnrs-jobs export --format csv --output cnrs_ia_jobs.csv
 uv run cnrs-jobs audit
+uv run cnrs-jobs digest
 uv run cnrs-jobs eval
 ```
 
@@ -61,6 +63,7 @@ uv run cnrs-jobs crawl --limit-pages 1 --limit-offers 5 \
   --no-cache
 uv run cnrs-jobs export --db /tmp/cnrs_smoke.sqlite --min-score 0.25
 uv run cnrs-jobs audit --db /tmp/cnrs_smoke.sqlite
+uv run cnrs-jobs digest --db /tmp/cnrs_smoke.sqlite --output /tmp/cnrs_digest.md
 uv run cnrs-jobs eval
 ```
 

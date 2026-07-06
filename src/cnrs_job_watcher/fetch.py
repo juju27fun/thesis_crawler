@@ -51,7 +51,7 @@ class CnrsClient:
         return html
 
     def fetch_offer_page(self, url: str, use_cache: bool = True) -> str:
-        cache_path = self.cache_dir / "offers" / f"{slugify(url.replace(BASE_URL, ''))}.html"
+        cache_path = self.offer_cache_path(url)
         if use_cache and cache_path.exists():
             return cache_path.read_text(encoding="utf-8")
 
@@ -61,6 +61,9 @@ class CnrsClient:
         _write_snapshot(cache_path, html)
         time.sleep(self.delay_seconds)
         return html
+
+    def offer_cache_path(self, url: str) -> Path:
+        return self.cache_dir / "offers" / f"{slugify(url.replace(BASE_URL, ''))}.html"
 
 
 def _write_snapshot(path: Path, html: str) -> None:

@@ -1,11 +1,22 @@
 import sqlite3
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from cnrs_job_watcher.classify import apply_classification
 from cnrs_job_watcher.evaluation import load_evaluation_cases, run_evaluation
+from cnrs_job_watcher.export import export_markdown
 from cnrs_job_watcher.parse import parse_list_page, parse_offer_detail
 from cnrs_job_watcher.schemas import JobOffer
-from cnrs_job_watcher.storage import audit_counts, connect, shortlist, upsert_offer
+from cnrs_job_watcher.storage import (
+    audit_counts,
+    connect,
+    finish_run,
+    latest_run_started_at,
+    record_offer_snapshot,
+    shortlist,
+    start_run,
+    upsert_offer,
+)
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -160,6 +171,90 @@ def test_sqlite_migration_and_shortlist_use_is_target(tmp_path: Path) -> None:
     assert counts["by_exclusion_reason"] == {"no_ai_ml_signal": 1}
 
 
+def test_storage_preserves_first_seen_and_filters_new_offers(tmp_path: Path) -> None:
+    connection = connect(tmp_path / "history.sqlite")
+    older_first_seen = datetime.now(UTC) - timedelta(days=2)
+    offer = apply_classification(
+        JobOffer(
+            url="https://emploi.cnrs.fr/Offres/CDD/UMR5549-LESMAR-016/Default.aspx",
+            reference="UMR5549-LESMAR-016",
+            title="Ingénieur d'étude en Intelligence artificielle bio-inspirée",
+            contract_type="IT en contrat CDD",
+            education_level="BAC+5",
+            description="Deep learning, PyTorch et réseaux de neurones.",
+            raw_text="Machine learning et intelligence artificielle.",
+            first_seen_at=older_first_seen,
+        )
+    )
+
+    upsert_offer(connection, offer)
+    run_id = start_run(connection)
+    since = latest_run_started_at(connection)
+    updated = apply_classification(
+        offer.model_copy(update={"description": "Deep learning, PyTorch et JAX."})
+    )
+    upsert_offer(connection, updated)
+    finish_run(
+        connection,
+        run_id,
+        pages_fetched=1,
+        offers_discovered=1,
+        offers_fetched=1,
+        errors_count=0,
+    )
+
+    all_rows = shortlist(connection, min_score=0.25)
+    new_rows = shortlist(connection, min_score=0.25, since=since)
+
+    assert len(all_rows) == 1
+    assert all_rows[0].first_seen_at == older_first_seen
+    assert new_rows == []
+
+
+def test_run_snapshot_and_digest_export(tmp_path: Path) -> None:
+    connection = connect(tmp_path / "snapshots.sqlite")
+    run_id = start_run(connection, profile="all_public")
+    offer = apply_classification(
+        JobOffer(
+            url="https://emploi.cnrs.fr/Offres/CDD/UMR5549-LESMAR-016/Default.aspx",
+            reference="UMR5549-LESMAR-016",
+            title="Ingénieur d'étude en Intelligence artificielle bio-inspirée",
+            contract_type="IT en contrat CDD",
+            education_level="BAC+5",
+            description="Deep learning, PyTorch et réseaux de neurones.",
+            raw_text="Machine learning et intelligence artificielle.",
+            content_hash="abc123",
+        )
+    )
+    upsert_offer(connection, offer)
+    record_offer_snapshot(
+        connection,
+        offer,
+        content_hash="abc123",
+        raw_path="/tmp/offer.html",
+        run_id=run_id,
+    )
+    finish_run(
+        connection,
+        run_id,
+        pages_fetched=1,
+        offers_discovered=1,
+        offers_fetched=1,
+        errors_count=0,
+    )
+
+    snapshot_count = connection.execute("SELECT COUNT(*) FROM offer_snapshots").fetchone()[0]
+    counts = audit_counts(connection)
+    digest_path = tmp_path / "digest.md"
+    export_markdown(shortlist(connection, min_score=0.25), digest_path)
+
+    assert snapshot_count == 1
+    assert counts["latest_run"]["offers_fetched"] == 1
+    assert "Ingénieur d'étude en Intelligence artificielle" in digest_path.read_text(
+        encoding="utf-8"
+    )
+
+
 def test_sqlite_migration_adds_target_columns_to_existing_database(tmp_path: Path) -> None:
     db_path = tmp_path / "legacy.sqlite"
     legacy = sqlite3.connect(db_path)
@@ -207,6 +302,8 @@ def test_sqlite_migration_adds_target_columns_to_existing_database(tmp_path: Pat
         "short_summary",
         "risk_flags",
         "classifier_version",
+        "content_hash",
+        "last_classified_at",
     }.issubset(columns)
 
 

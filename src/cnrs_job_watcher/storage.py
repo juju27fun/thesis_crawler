@@ -44,11 +44,41 @@ def initialize(connection: sqlite3.Connection) -> None:
             short_summary TEXT,
             risk_flags TEXT NOT NULL DEFAULT '[]',
             classifier_version TEXT NOT NULL DEFAULT 'rules-v1',
+            content_hash TEXT,
+            last_classified_at TEXT,
             ai_relevance_score REAL,
             ai_category TEXT,
             ai_reason TEXT,
             first_seen_at TEXT NOT NULL,
             last_seen_at TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            started_at TEXT NOT NULL,
+            finished_at TEXT,
+            profile TEXT NOT NULL DEFAULT 'all_public',
+            pages_fetched INTEGER NOT NULL DEFAULT 0,
+            offers_discovered INTEGER NOT NULL DEFAULT 0,
+            offers_fetched INTEGER NOT NULL DEFAULT 0,
+            errors_count INTEGER NOT NULL DEFAULT 0
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS offer_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            offer_url TEXT NOT NULL,
+            reference TEXT,
+            content_hash TEXT NOT NULL,
+            fetched_at TEXT NOT NULL,
+            raw_path TEXT,
+            run_id INTEGER,
+            FOREIGN KEY(run_id) REFERENCES runs(id)
         )
         """
     )
@@ -58,6 +88,11 @@ def initialize(connection: sqlite3.Connection) -> None:
     connection.execute(
         "CREATE INDEX IF NOT EXISTS idx_offers_target ON offers(is_target, target_bucket)"
     )
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_offers_first_seen ON offers(first_seen_at)")
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_snapshots_offer ON offer_snapshots(offer_url)"
+    )
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_runs_started ON runs(started_at)")
     connection.commit()
 
 
@@ -74,6 +109,8 @@ def _add_missing_columns(connection: sqlite3.Connection) -> None:
         "short_summary": "TEXT",
         "risk_flags": "TEXT NOT NULL DEFAULT '[]'",
         "classifier_version": "TEXT NOT NULL DEFAULT 'rules-v1'",
+        "content_hash": "TEXT",
+        "last_classified_at": "TEXT",
     }
     for name, definition in columns.items():
         if name not in existing:
@@ -97,13 +134,15 @@ def upsert_offer(connection: sqlite3.Connection, offer: JobOffer) -> None:
             experience_level, location, lab, published_at_text, description, skills,
             raw_text, unavailable, hard_filter_passed, is_target, target_bucket,
             accessibility, exclusion_reason, short_summary, risk_flags, classifier_version,
-            ai_relevance_score, ai_category, ai_reason, first_seen_at, last_seen_at
+            content_hash, last_classified_at, ai_relevance_score, ai_category, ai_reason,
+            first_seen_at, last_seen_at
         ) VALUES (
             :url, :source, :reference, :title, :contract_type, :duration, :education_level,
             :experience_level, :location, :lab, :published_at_text, :description, :skills,
             :raw_text, :unavailable, :hard_filter_passed, :is_target, :target_bucket,
             :accessibility, :exclusion_reason, :short_summary, :risk_flags, :classifier_version,
-            :ai_relevance_score, :ai_category, :ai_reason, :first_seen_at, :last_seen_at
+            :content_hash, :last_classified_at, :ai_relevance_score, :ai_category, :ai_reason,
+            :first_seen_at, :last_seen_at
         )
         ON CONFLICT(url) DO UPDATE SET
             reference = excluded.reference,
@@ -127,6 +166,8 @@ def upsert_offer(connection: sqlite3.Connection, offer: JobOffer) -> None:
             short_summary = excluded.short_summary,
             risk_flags = excluded.risk_flags,
             classifier_version = excluded.classifier_version,
+            content_hash = excluded.content_hash,
+            last_classified_at = excluded.last_classified_at,
             ai_relevance_score = excluded.ai_relevance_score,
             ai_category = excluded.ai_category,
             ai_reason = excluded.ai_reason,
@@ -137,14 +178,21 @@ def upsert_offer(connection: sqlite3.Connection, offer: JobOffer) -> None:
     connection.commit()
 
 
-def shortlist(connection: sqlite3.Connection, min_score: float = 0.35) -> list[JobOffer]:
+def shortlist(
+    connection: sqlite3.Connection,
+    min_score: float = 0.35,
+    since: str | None = None,
+) -> list[JobOffer]:
+    since_filter = "AND first_seen_at >= ?" if since else ""
+    parameters: tuple[object, ...] = (min_score, since) if since else (min_score,)
     rows = connection.execute(
-        """
+        f"""
         SELECT * FROM offers
         WHERE unavailable = 0
           AND is_target = 1
           AND COALESCE(ai_category, '') != 'not_relevant'
           AND COALESCE(ai_relevance_score, 0) >= ?
+          {since_filter}
         ORDER BY
           CASE target_bucket
             WHEN 'primary_target' THEN 1
@@ -155,7 +203,7 @@ def shortlist(connection: sqlite3.Connection, min_score: float = 0.35) -> list[J
           ai_relevance_score DESC,
           title ASC
         """,
-        (min_score,),
+        parameters,
     ).fetchall()
     return [_row_to_offer(row) for row in rows]
 
@@ -193,7 +241,109 @@ def audit_counts(connection: sqlite3.Connection) -> dict[str, object]:
         "unavailable": unavailable,
         "by_bucket": by_bucket,
         "by_exclusion_reason": by_exclusion_reason,
+        "latest_run": latest_run(connection),
+        "top_scores": top_scores(connection),
     }
+
+
+def start_run(connection: sqlite3.Connection, profile: str = "all_public") -> int:
+    cursor = connection.execute(
+        """
+        INSERT INTO runs (started_at, profile)
+        VALUES (?, ?)
+        """,
+        (datetime.now(UTC).isoformat(), profile),
+    )
+    connection.commit()
+    return int(cursor.lastrowid)
+
+
+def finish_run(
+    connection: sqlite3.Connection,
+    run_id: int,
+    *,
+    pages_fetched: int,
+    offers_discovered: int,
+    offers_fetched: int,
+    errors_count: int,
+) -> None:
+    connection.execute(
+        """
+        UPDATE runs
+        SET finished_at = ?,
+            pages_fetched = ?,
+            offers_discovered = ?,
+            offers_fetched = ?,
+            errors_count = ?
+        WHERE id = ?
+        """,
+        (
+            datetime.now(UTC).isoformat(),
+            pages_fetched,
+            offers_discovered,
+            offers_fetched,
+            errors_count,
+            run_id,
+        ),
+    )
+    connection.commit()
+
+
+def latest_run(connection: sqlite3.Connection) -> dict[str, object] | None:
+    row = connection.execute(
+        """
+        SELECT *
+        FROM runs
+        ORDER BY started_at DESC, id DESC
+        LIMIT 1
+        """
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def latest_run_started_at(connection: sqlite3.Connection) -> str | None:
+    run = latest_run(connection)
+    return str(run["started_at"]) if run else None
+
+
+def record_offer_snapshot(
+    connection: sqlite3.Connection,
+    offer: JobOffer,
+    *,
+    content_hash: str,
+    raw_path: str | None,
+    run_id: int | None,
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO offer_snapshots (
+            offer_url, reference, content_hash, fetched_at, raw_path, run_id
+        ) VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            str(offer.url),
+            offer.reference,
+            content_hash,
+            datetime.now(UTC).isoformat(),
+            raw_path,
+            run_id,
+        ),
+    )
+    connection.commit()
+
+
+def top_scores(connection: sqlite3.Connection, limit: int = 5) -> list[dict[str, object]]:
+    rows = connection.execute(
+        """
+        SELECT reference, title, target_bucket, ai_relevance_score
+        FROM offers
+        WHERE ai_relevance_score IS NOT NULL
+        ORDER BY ai_relevance_score DESC, title ASC
+        LIMIT ?
+        """,
+        (limit,),
+    ).fetchall()
+    return [dict(row) for row in rows]
 
 
 def all_offers(connection: sqlite3.Connection) -> Iterable[JobOffer]:

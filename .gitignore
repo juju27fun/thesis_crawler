@@ -5,6 +5,7 @@ __pycache__/
 *.pyc
 
 data/raw/
+data/digests/
 data/*.sqlite
 cnrs_ia_jobs.md
 cnrs_ia_jobs.csv

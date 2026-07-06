@@ -46,6 +46,8 @@ class JobOffer(BaseModel):
     short_summary: str | None = None
     risk_flags: list[str] = Field(default_factory=list)
     classifier_version: str = "rules-v1"
+    content_hash: str | None = None
+    last_classified_at: datetime | None = None
     ai_relevance_score: float | None = Field(default=None, ge=0, le=1)
     ai_category: AiCategory | None = None
     ai_reason: str | None = None
