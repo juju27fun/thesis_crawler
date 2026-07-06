@@ -31,7 +31,7 @@ Commandes exécutées avec succès :
 uv run pytest
 uv run ruff check .
 uv run cnrs-jobs eval
-uv run pytest
+uv run cnrs-jobs eval --dataset tests/fixtures/evaluation/observed_offers.json
 uv run cnrs-jobs crawl --profile ai_audit --limit-pages 1 --limit-offers 2 --max-error-rate 0.2
 uv run cnrs-jobs audit --json
 ```
@@ -40,6 +40,19 @@ Résultat `eval` :
 
 ```txt
 Cas évalués 31
+Bucket accuracy 1.000
+Domain accuracy 1.000
+Accessibility accuracy 1.000
+Target precision 1.000
+Target recall 1.000
+False targets 0
+Missed targets 0
+```
+
+Résultat `eval` sur corpus observé :
+
+```txt
+Cas évalués 40
 Bucket accuracy 1.000
 Domain accuracy 1.000
 Accessibility accuracy 1.000
