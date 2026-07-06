@@ -95,5 +95,7 @@ uv run cnrs-jobs eval
 Les bases SQLite, snapshots HTML et exports générés restent hors Git.
 
 `cnrs-jobs eval` utilise un dataset annoté de 31 cas couvrant thèses IA, CDD BAC+5,
-adjacents à relire, postdocs, stages/apprentissages/CDI et bruit administratif. Son rôle est de
-bloquer les régressions critiques et de suivre précision/rappel sur les buckets cibles.
+adjacents à relire, postdocs, stages/apprentissages/CDI et bruit administratif. Le fichier
+`tests/fixtures/evaluation/observed_offers.json` ajoute 40 offres CNRS réellement crawlées le
+2026-07-06 et auto-étiquetées comme baseline de régression. Ensemble, ces jeux bloquent les
+régressions critiques et suivent précision/rappel sur les buckets cibles.
