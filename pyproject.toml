@@ -1,0 +1,37 @@
+[project]
+name = "cnrs-job-watcher"
+version = "0.1.0"
+description = "Veilleur intelligent d'offres CNRS IA/ML"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "beautifulsoup4>=4.12.3",
+    "httpx>=0.27.2",
+    "pydantic>=2.9.2",
+    "rich>=13.8.1",
+    "typer>=0.12.5",
+]
+
+[project.scripts]
+cnrs-jobs = "cnrs_job_watcher.cli:app"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.3",
+    "ruff>=0.6.9",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["B008"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
