@@ -18,6 +18,78 @@
     }
   },
   {
+    "reference": "UMR6074-NICKER-009",
+    "expected_bucket": "primary_target",
+    "expected_ai_domain": "ml_deep_learning",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "Thèse observée sur réseaux de neurones sur graphes.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/Doctorant/UMR6074-NICKER-009/Default.aspx",
+      "reference": "UMR6074-NICKER-009",
+      "title": "Thèse (H/F) Hyperbolicité différentiable en réseaux de neurones sur graphes",
+      "contract_type": "CDD Doctorant",
+      "duration": "36 mois",
+      "education_level": "BAC+5",
+      "description": "Apprentissage automatique et réseaux de neurones sur graphes.",
+      "skills": "Python, graph neural networks, PyTorch",
+      "raw_text": "Intelligence artificielle, GNN, réseaux de neurones."
+    }
+  },
+  {
+    "reference": "UMR0001-LLM-001",
+    "expected_bucket": "primary_target",
+    "expected_ai_domain": "generative_ai",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "Contrat doctoral LLM/NLP.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/Doctorant/UMR0001-LLM-001/Default.aspx",
+      "reference": "UMR0001-LLM-001",
+      "title": "Doctorant H/F modèles de langage et raisonnement scientifique",
+      "contract_type": "CDD Doctorant",
+      "duration": "36 mois",
+      "education_level": "BAC+5",
+      "description": "Étude de LLM, transformers et NLP pour extraction de connaissances.",
+      "skills": "Python, transformer, LLM, NLP",
+      "raw_text": "Contrat doctoral BAC+5 sur modèles de langage."
+    }
+  },
+  {
+    "reference": "UMR0002-RL-001",
+    "expected_bucket": "primary_target",
+    "expected_ai_domain": "ml_deep_learning",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "Thèse apprentissage par renforcement.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/Doctorant/UMR0002-RL-001/Default.aspx",
+      "reference": "UMR0002-RL-001",
+      "title": "Thèse H/F apprentissage par renforcement pour robotique autonome",
+      "contract_type": "CDD Doctorant",
+      "duration": "36 mois",
+      "education_level": "BAC+5",
+      "description": "Reinforcement learning, deep learning et contrôle robotique.",
+      "skills": "Python, JAX, reinforcement learning",
+      "raw_text": "Apprentissage par renforcement et réseaux de neurones."
+    }
+  },
+  {
+    "reference": "UMR0003-CV-001",
+    "expected_bucket": "primary_target",
+    "expected_ai_domain": "ml_deep_learning",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "Contrat doctoral vision artificielle.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/Doctorant/UMR0003-CV-001/Default.aspx",
+      "reference": "UMR0003-CV-001",
+      "title": "Thèse H/F vision artificielle pour imagerie biomédicale",
+      "contract_type": "Contrat doctoral",
+      "duration": "36 mois",
+      "education_level": "BAC+5",
+      "description": "Computer vision, deep learning et segmentation d'images.",
+      "skills": "PyTorch, computer vision, deep learning",
+      "raw_text": "Vision artificielle appliquée à la microscopie."
+    }
+  },
+  {
     "reference": "UMR5549-LESMAR-016",
     "expected_bucket": "secondary_target",
     "expected_ai_domain": "ml_deep_learning",
@@ -33,6 +105,150 @@
       "description": "Développement Python de modèles de deep learning bio-inspirés avec PyTorch.",
       "skills": "Python, machine learning, deep learning, réseaux de neurones",
       "raw_text": "Intelligence artificielle, PyTorch, apprentissage automatique."
+    }
+  },
+  {
+    "reference": "UMR9198-RAPGUE-001",
+    "expected_bucket": "secondary_target",
+    "expected_ai_domain": "ml_deep_learning",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "Offre observée bioinformatique avec deep learning/PyTorch.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/CDD/UMR9198-RAPGUE-001/Default.aspx",
+      "reference": "UMR9198-RAPGUE-001",
+      "title": "Ingénieur bioinformatique (H/F) en analyse intégrative de données d’interactomique",
+      "contract_type": "IT en contrat CDD",
+      "duration": "13 mois",
+      "education_level": "BAC+5",
+      "description": "Analyse intégrative de données avec deep learning et modèles PyTorch.",
+      "skills": "Python, PyTorch, bioinformatique",
+      "raw_text": "Machine learning, deep learning, réseaux de neurones."
+    }
+  },
+  {
+    "reference": "UAR3598-ARIALL-048",
+    "expected_bucket": "secondary_target",
+    "expected_ai_domain": "generative_ai",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "CDD BAC+5 Huma-Num avec LLM/Ollama/Transformers.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/CDD/UAR3598-ARIALL-048/Default.aspx",
+      "reference": "UAR3598-ARIALL-048",
+      "title": "Ingénieur d'études LLM et outils d'annotation sémantique",
+      "contract_type": "IT en contrat CDD",
+      "duration": "12 mois",
+      "education_level": "BAC+5",
+      "description": "Développement d'un pipeline LLM avec transformers et bases vectorielles.",
+      "skills": "Python, LLM, transformer, LangChain, Ollama",
+      "raw_text": "IA générative, NLP et annotation sémantique."
+    }
+  },
+  {
+    "reference": "UMR0004-MLOPS-001",
+    "expected_bucket": "secondary_target",
+    "expected_ai_domain": "ml_deep_learning",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "Ingénieur MLOps BAC+5.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/CDD/UMR0004-MLOPS-001/Default.aspx",
+      "reference": "UMR0004-MLOPS-001",
+      "title": "Ingénieur MLOps pour plateforme d'apprentissage automatique",
+      "contract_type": "IT en contrat CDD",
+      "duration": "24 mois",
+      "education_level": "BAC+5",
+      "description": "Industrialisation de modèles machine learning, MLOps et monitoring.",
+      "skills": "Python, MLOps, TensorFlow, JAX",
+      "raw_text": "Machine learning et deep learning en production."
+    }
+  },
+  {
+    "reference": "UMR0005-DATA-001",
+    "expected_bucket": "secondary_target",
+    "expected_ai_domain": "data_science_adjacent",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "Data science BAC+5 sans ML fort.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/CDD/UMR0005-DATA-001/Default.aspx",
+      "reference": "UMR0005-DATA-001",
+      "title": "Ingénieur data science pour données expérimentales",
+      "contract_type": "IT en contrat CDD",
+      "duration": "12 mois",
+      "education_level": "BAC+5",
+      "description": "Data science, big data et analyse statistique de jeux de données scientifiques.",
+      "skills": "Python, science des données, big data",
+      "raw_text": "CDD BAC+5 en science des données."
+    }
+  },
+  {
+    "reference": "UMR7288-AUDBAR-083",
+    "expected_bucket": "adjacent_review",
+    "expected_ai_domain": "ml_deep_learning",
+    "expected_accessibility": "unclear",
+    "notes": "BAC+3/4 très pertinent IA, à relire plutôt qu'à supprimer.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/CDD/UMR7288-AUDBAR-083/Default.aspx",
+      "reference": "UMR7288-AUDBAR-083",
+      "title": "Assistant ingénieur Smart-Microscopy et deep learning",
+      "contract_type": "IT en contrat CDD",
+      "duration": "12 mois",
+      "education_level": "BAC+3/4",
+      "description": "Développement de modules computer vision pour microscope intelligent.",
+      "skills": "Python, PyTorch, deep learning, machine learning, computer vision",
+      "raw_text": "Réseaux de neurones et apprentissage automatique pour imagerie."
+    }
+  },
+  {
+    "reference": "UMR8255-MATHUS-002",
+    "expected_bucket": "adjacent_review",
+    "expected_ai_domain": "ml_deep_learning",
+    "expected_accessibility": "unclear",
+    "notes": "Offre observée BAC+3/4 vision artificielle.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/CDD/UMR8255-MATHUS-002/Default.aspx",
+      "reference": "UMR8255-MATHUS-002",
+      "title": "Ingénieur vision artificielle et analyse de documents pour les SHS",
+      "contract_type": "IT en contrat CDD",
+      "duration": "24 mois",
+      "education_level": "BAC+3/4",
+      "description": "Vision artificielle, PyTorch et analyse de documents patrimoniaux.",
+      "skills": "Python, computer vision, deep learning",
+      "raw_text": "Intelligence artificielle et OCR pour SHS."
+    }
+  },
+  {
+    "reference": "UMR7039-RICBOR-002",
+    "expected_bucket": "adjacent_review",
+    "expected_ai_domain": "generative_ai",
+    "expected_accessibility": "unclear",
+    "notes": "IA créative/générative à revue manuelle.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/CDD/UMR7039-RICBOR-002/Default.aspx",
+      "reference": "UMR7039-RICBOR-002",
+      "title": "Ingénieur création artistique et IA générative",
+      "contract_type": "IT en contrat CDD",
+      "duration": "10 mois",
+      "education_level": "BAC+3/4",
+      "description": "Exploration de modèles génératifs, diffusion model et transformer pour création.",
+      "skills": "Python, IA générative, diffusion model",
+      "raw_text": "Modèles génératifs appliqués aux arts numériques."
+    }
+  },
+  {
+    "reference": "UMR0006-BIOINFO-001",
+    "expected_bucket": "adjacent_review",
+    "expected_ai_domain": "data_science_adjacent",
+    "expected_accessibility": "unclear",
+    "notes": "Bioinformatique adjacente sans ML fort.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/CDD/UMR0006-BIOINFO-001/Default.aspx",
+      "reference": "UMR0006-BIOINFO-001",
+      "title": "Assistant ingénieur bioinformatique et science des données",
+      "contract_type": "IT en contrat CDD",
+      "duration": "12 mois",
+      "education_level": "BAC+3/4",
+      "description": "Bioinformatique, science des données et analyse de grands jeux de données.",
+      "skills": "Python, bioinformatique, big data",
+      "raw_text": "Data science pour génomique."
     }
   },
   {
@@ -54,14 +270,140 @@
     }
   },
   {
-    "reference": "UMR0000-ADMIN-001",
+    "reference": "UMR0007-POSTDOC-001",
+    "expected_bucket": "exclude",
+    "expected_ai_domain": "generative_ai",
+    "expected_accessibility": "doctorate_required",
+    "notes": "Postdoc LLM à exclure.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/CDD/UMR0007-POSTDOC-001/Default.aspx",
+      "reference": "UMR0007-POSTDOC-001",
+      "title": "Postdoctoral researcher on LLM for chemistry",
+      "contract_type": "Chercheur en contrat CDD",
+      "duration": "18 mois",
+      "education_level": "Doctorat",
+      "description": "PhD required. LLM, transformers and generative models.",
+      "skills": "Python, LLM, transformer",
+      "raw_text": "Postdoc IA générative."
+    }
+  },
+  {
+    "reference": "UMR0008-POSTDOC-002",
+    "expected_bucket": "exclude",
+    "expected_ai_domain": "ml_deep_learning",
+    "expected_accessibility": "doctorate_required",
+    "notes": "Post-doctoral computer vision.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/CDD/UMR0008-POSTDOC-002/Default.aspx",
+      "reference": "UMR0008-POSTDOC-002",
+      "title": "Chercheur post-doctoral en computer vision",
+      "contract_type": "Chercheur en contrat CDD",
+      "duration": "24 mois",
+      "education_level": "Doctorat",
+      "description": "Doctorat exigé. Computer vision, PyTorch et deep learning.",
+      "skills": "Python, computer vision, deep learning",
+      "raw_text": "Post-doctoral position."
+    }
+  },
+  {
+    "reference": "UMR0009-STAGE-001",
+    "expected_bucket": "exclude",
+    "expected_ai_domain": "ml_deep_learning",
+    "expected_accessibility": "not_accessible",
+    "notes": "Stage IA à exclure du scope.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/Stage/UMR0009-STAGE-001/Default.aspx",
+      "reference": "UMR0009-STAGE-001",
+      "title": "Stage machine learning pour analyse d'images",
+      "contract_type": "Convention de stage",
+      "duration": "6 mois",
+      "education_level": "BAC+5",
+      "description": "Machine learning, deep learning et PyTorch pour segmentation.",
+      "skills": "Python, PyTorch, deep learning",
+      "raw_text": "Stage de fin d'études."
+    }
+  },
+  {
+    "reference": "UMR0010-APPR-001",
+    "expected_bucket": "exclude",
+    "expected_ai_domain": "ml_deep_learning",
+    "expected_accessibility": "not_accessible",
+    "notes": "Apprentissage IA à exclure.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/Apprentissage/UMR0010-APPR-001/Default.aspx",
+      "reference": "UMR0010-APPR-001",
+      "title": "Alternance IA et data science",
+      "contract_type": "Contrat d’apprentissage",
+      "duration": "12 mois",
+      "education_level": "BAC+5",
+      "description": "Data science, machine learning et TensorFlow.",
+      "skills": "Python, TensorFlow, machine learning",
+      "raw_text": "Contrat d'apprentissage en IA."
+    }
+  },
+  {
+    "reference": "UMR0011-CDI-001",
+    "expected_bucket": "exclude",
+    "expected_ai_domain": "ml_deep_learning",
+    "expected_accessibility": "not_accessible",
+    "notes": "CDI IA hors cible de veille.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/CDI/UMR0011-CDI-001/Default.aspx",
+      "reference": "UMR0011-CDI-001",
+      "title": "Ingénieur CDI deep learning",
+      "contract_type": "IT en contrat CDI",
+      "duration": "Permanent",
+      "education_level": "BAC+5",
+      "description": "Deep learning, MLOps et réseaux de neurones.",
+      "skills": "Python, MLOps, deep learning",
+      "raw_text": "CDI IA."
+    }
+  },
+  {
+    "reference": "INS1680-ESTHUT-001",
+    "expected_bucket": "exclude",
+    "expected_ai_domain": "not_relevant",
+    "expected_accessibility": "unclear",
+    "notes": "Communication autour d'un programme IA, pas poste technique.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/CDD/INS1680-ESTHUT-001/Default.aspx",
+      "reference": "INS1680-ESTHUT-001",
+      "title": "Chargé de communication pour un programme intelligence artificielle",
+      "contract_type": "IT en contrat CDD",
+      "duration": "12 mois",
+      "education_level": "BAC+3/4",
+      "description": "Communication, animation éditoriale et coordination d'événements.",
+      "skills": "Communication, rédaction, gestion administrative",
+      "raw_text": "Programme intelligence artificielle sans développement technique."
+    }
+  },
+  {
+    "reference": "UMR0012-PROJECT-001",
     "expected_bucket": "exclude",
     "expected_ai_domain": "not_relevant",
     "expected_accessibility": "bac5_accessible",
-    "notes": "CDD BAC+5 compatible contractuellement mais sans signal IA/ML.",
+    "notes": "Gestion de projet IA sans travail technique.",
     "offer": {
-      "url": "https://emploi.cnrs.fr/Offres/CDD/UMR0000-ADMIN-001/Default.aspx",
-      "reference": "UMR0000-ADMIN-001",
+      "url": "https://emploi.cnrs.fr/Offres/CDD/UMR0012-PROJECT-001/Default.aspx",
+      "reference": "UMR0012-PROJECT-001",
+      "title": "Chef de projets programme IA",
+      "contract_type": "IT en contrat CDD",
+      "duration": "18 mois",
+      "education_level": "BAC+5",
+      "description": "Gestion administrative, reporting et coordination de consortium.",
+      "skills": "Pilotage, ressources humaines, budget",
+      "raw_text": "Chef de projets intelligence artificielle."
+    }
+  },
+  {
+    "reference": "UMR0013-INSTRU-001",
+    "expected_bucket": "exclude",
+    "expected_ai_domain": "not_relevant",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "CDD BAC+5 sans signal IA/ML.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/CDD/UMR0013-INSTRU-001/Default.aspx",
+      "reference": "UMR0013-INSTRU-001",
       "title": "Ingénieur d'étude en instrumentation",
       "contract_type": "IT en contrat CDD",
       "duration": "12 mois",
@@ -72,21 +414,147 @@
     }
   },
   {
-    "reference": "UMR7288-AUDBAR-083",
-    "expected_bucket": "adjacent_review",
-    "expected_ai_domain": "ml_deep_learning",
-    "expected_accessibility": "unclear",
-    "notes": "BAC+3/4 très pertinent IA, à relire plutôt qu'à supprimer.",
+    "reference": "UMR0014-CHEM-001",
+    "expected_bucket": "exclude",
+    "expected_ai_domain": "not_relevant",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "Thèse non IA malgré BAC+5.",
     "offer": {
-      "url": "https://emploi.cnrs.fr/Offres/CDD/UMR7288-AUDBAR-083/Default.aspx",
-      "reference": "UMR7288-AUDBAR-083",
-      "title": "Assistant ingénieur Smart-Microscopy et deep learning",
+      "url": "https://emploi.cnrs.fr/Offres/Doctorant/UMR0014-CHEM-001/Default.aspx",
+      "reference": "UMR0014-CHEM-001",
+      "title": "Thèse de doctorat en chimie organique",
+      "contract_type": "CDD Doctorant",
+      "duration": "36 mois",
+      "education_level": "BAC+5",
+      "description": "Synthèse moléculaire et caractérisation spectroscopique.",
+      "skills": "Chimie organique, spectroscopie",
+      "raw_text": "Contrat doctoral BAC+5 sans informatique."
+    }
+  },
+  {
+    "reference": "UMR0015-PHY-001",
+    "expected_bucket": "exclude",
+    "expected_ai_domain": "not_relevant",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "Thèse physique non IA.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/Doctorant/UMR0015-PHY-001/Default.aspx",
+      "reference": "UMR0015-PHY-001",
+      "title": "Doctorant H/F matériaux quantiques",
+      "contract_type": "CDD Doctorant",
+      "duration": "36 mois",
+      "education_level": "BAC+5",
+      "description": "Croissance cristalline et mesures de transport.",
+      "skills": "Physique du solide, cryogénie",
+      "raw_text": "Aucun signal IA/ML."
+    }
+  },
+  {
+    "reference": "UMR0016-STAT-001",
+    "expected_bucket": "secondary_target",
+    "expected_ai_domain": "data_science_adjacent",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "CDD BAC+5 data/stat à conserver en secondaire.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/CDD/UMR0016-STAT-001/Default.aspx",
+      "reference": "UMR0016-STAT-001",
+      "title": "Ingénieur en science des données pour cohortes biologiques",
+      "contract_type": "IT en contrat CDD",
+      "duration": "18 mois",
+      "education_level": "BAC+5",
+      "description": "Science des données, big data et analyses statistiques reproductibles.",
+      "skills": "Python, data science, big data",
+      "raw_text": "Data science pour données biomédicales."
+    }
+  },
+  {
+    "reference": "UMR0017-NLP-001",
+    "expected_bucket": "secondary_target",
+    "expected_ai_domain": "generative_ai",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "Ingénieur NLP/LLM BAC+5.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/CDD/UMR0017-NLP-001/Default.aspx",
+      "reference": "UMR0017-NLP-001",
+      "title": "Ingénieur NLP pour corpus scientifiques",
       "contract_type": "IT en contrat CDD",
       "duration": "12 mois",
-      "education_level": "BAC+3/4",
-      "description": "Développement de modules computer vision pour microscope intelligent.",
-      "skills": "Python, PyTorch, deep learning, machine learning, computer vision",
-      "raw_text": "Réseaux de neurones et apprentissage automatique pour imagerie."
+      "education_level": "BAC+5",
+      "description": "NLP, LLM, transformers et annotation sémantique de textes.",
+      "skills": "Python, NLP, LLM, transformer",
+      "raw_text": "Traitement automatique du langage."
+    }
+  },
+  {
+    "reference": "UMR0018-GENAI-001",
+    "expected_bucket": "secondary_target",
+    "expected_ai_domain": "generative_ai",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "Ingénieur IA générative BAC+5.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/CDD/UMR0018-GENAI-001/Default.aspx",
+      "reference": "UMR0018-GENAI-001",
+      "title": "Ingénieur IA générative pour simulation scientifique",
+      "contract_type": "IT en contrat CDD",
+      "duration": "24 mois",
+      "education_level": "BAC+5",
+      "description": "Modèles génératifs, diffusion model et transformers pour simulation.",
+      "skills": "Python, PyTorch, modèles de diffusion",
+      "raw_text": "IA générative et deep learning."
+    }
+  },
+  {
+    "reference": "UMR0019-MOB-001",
+    "expected_bucket": "exclude",
+    "expected_ai_domain": "ml_deep_learning",
+    "expected_accessibility": "not_accessible",
+    "notes": "Mobilité interne IA hors cible.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/Mobilite/UMR0019-MOB-001/Default.aspx",
+      "reference": "UMR0019-MOB-001",
+      "title": "Mobilité ingénieur intelligence artificielle",
+      "contract_type": "Mobilité Service Public",
+      "duration": "36 mois",
+      "education_level": "BAC+5",
+      "description": "Deep learning, machine learning et MLOps.",
+      "skills": "Python, MLOps",
+      "raw_text": "Mobilité interne."
+    }
+  },
+  {
+    "reference": "UMR0020-IR-001",
+    "expected_bucket": "exclude",
+    "expected_ai_domain": "ml_deep_learning",
+    "expected_accessibility": "doctorate_required",
+    "notes": "Ingénieur de recherche demandant doctorat explicitement.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/CDD/UMR0020-IR-001/Default.aspx",
+      "reference": "UMR0020-IR-001",
+      "title": "Ingénieur de recherche deep learning",
+      "contract_type": "IT en contrat CDD",
+      "duration": "12 mois",
+      "education_level": "Doctorat",
+      "description": "Doctorat requis. Deep learning et TensorFlow.",
+      "skills": "Python, TensorFlow, deep learning",
+      "raw_text": "PhD required."
+    }
+  },
+  {
+    "reference": "UMR0021-LOW-001",
+    "expected_bucket": "exclude",
+    "expected_ai_domain": "not_relevant",
+    "expected_accessibility": "unclear",
+    "notes": "Signal data trop faible et niveau non cible.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/CDD/UMR0021-LOW-001/Default.aspx",
+      "reference": "UMR0021-LOW-001",
+      "title": "Technicien traitement de données expérimentales",
+      "contract_type": "IT en contrat CDD",
+      "duration": "9 mois",
+      "education_level": "BAC+2",
+      "description": "Traitement de données et tableurs de laboratoire.",
+      "skills": "Excel, qualité de données",
+      "raw_text": "Données expérimentales."
     }
   }
 ]

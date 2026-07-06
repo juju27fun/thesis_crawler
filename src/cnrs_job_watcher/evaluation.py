@@ -38,6 +38,8 @@ class EvaluationSummary(BaseModel):
     bucket_accuracy: float
     domain_accuracy: float
     accessibility_accuracy: float
+    target_precision: float
+    target_recall: float
     false_targets: int
     missed_targets: int
     results: list[EvaluationResult]
@@ -74,6 +76,12 @@ def run_evaluation(cases: list[EvaluationCase]) -> EvaluationSummary:
         )
 
     total = len(results)
+    expected_targets = sum(case.expected_bucket in target_buckets for case in cases)
+    actual_targets = sum(result.actual_bucket in target_buckets for result in results)
+    true_targets = sum(
+        result.actual_bucket in target_buckets and result.expected_bucket in target_buckets
+        for result in results
+    )
     return EvaluationSummary(
         total=total,
         bucket_accuracy=_ratio(sum(result.bucket_ok for result in results), total),
@@ -82,6 +90,8 @@ def run_evaluation(cases: list[EvaluationCase]) -> EvaluationSummary:
             sum(result.accessibility_ok for result in results),
             total,
         ),
+        target_precision=_ratio(true_targets, actual_targets),
+        target_recall=_ratio(true_targets, expected_targets),
         false_targets=sum(result.is_false_target for result in results),
         missed_targets=sum(result.is_missed_target for result in results),
         results=results,

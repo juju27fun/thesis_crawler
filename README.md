@@ -87,6 +87,6 @@ uv run cnrs-jobs eval
 
 Les bases SQLite, snapshots HTML et exports générés restent hors Git.
 
-`cnrs-jobs eval` utilise actuellement un petit dataset annoté de démarrage. Son rôle est de
-bloquer les régressions critiques déjà observées ; il doit encore être enrichi vers au moins 30
-offres réelles pour mesurer sérieusement précision et rappel.
+`cnrs-jobs eval` utilise un dataset annoté de 31 cas couvrant thèses IA, CDD BAC+5,
+adjacents à relire, postdocs, stages/apprentissages/CDI et bruit administratif. Son rôle est de
+bloquer les régressions critiques et de suivre précision/rappel sur les buckets cibles.

@@ -73,6 +73,16 @@ DOCTORATE_REQUIRED_TERMS = {
     "ph.d. required",
 }
 
+EXCLUDED_CONTRACT_TERMS = {
+    "stage",
+    "convention de stage",
+    "contrat d’apprentissage",
+    "contrat d'apprentissage",
+    "cdi",
+    "mobilité",
+    "mobilite",
+}
+
 
 def classify_offer(offer: JobOffer) -> Classification:
     text = " ".join(
@@ -112,7 +122,9 @@ def classify_offer(offer: JobOffer) -> Classification:
         "LLM",
         "transformer",
     ]
-    if any(hit in strong_hits for hit in generative_hits):
+    if negative_hits:
+        domain = "not_relevant"
+    elif any(hit in strong_hits for hit in generative_hits):
         domain = "generative_ai"
     elif strong_hits:
         domain = "ml_deep_learning"
@@ -197,6 +209,10 @@ def hard_filter(
     education = (offer.education_level or "").lower()
     structured_text = _structured_text(offer)
 
+    excluded_contract = _excluded_contract_reason(contract)
+    if excluded_contract:
+        return False, "not_target", "not_accessible", excluded_contract
+
     if _is_postdoc_or_doctorate_required(text, structured_text):
         return False, "not_target", "doctorate_required", "doctorate_required"
 
@@ -241,6 +257,13 @@ def _is_postdoc_or_doctorate_required(text: str, structured_text: str) -> bool:
     )
 
 
+def _excluded_contract_reason(structured_text: str) -> str | None:
+    for term in EXCLUDED_CONTRACT_TERMS:
+        if term in structured_text:
+            return f"excluded_contract:{term}"
+    return None
+
+
 def _decide_bucket(
     *,
     offer: JobOffer,
@@ -264,6 +287,8 @@ def _decide_bucket(
 
     if offer.unavailable:
         return "exclude", False, "expired_or_unavailable", risk_flags
+    if eligibility_exclusion and eligibility_exclusion.startswith("excluded_contract:"):
+        return "exclude", False, eligibility_exclusion, risk_flags
     if accessibility == "doctorate_required":
         risk_flags.append("postdoc")
         return "exclude", False, "doctorate_required_or_postdoc", risk_flags
@@ -271,12 +296,14 @@ def _decide_bucket(
         return "exclude", False, f"negative_signal:{negative_hits[0]}", risk_flags
     if domain == "not_relevant":
         return "exclude", False, "no_ai_ml_signal", risk_flags
-    if score < 0.35:
-        return "exclude", False, "score_below_threshold", risk_flags
     if target_type == "thesis_or_bac5_cdd":
         return "primary_target", True, None, risk_flags
     if target_type == "bac5_cdd":
         return "secondary_target", True, None, risk_flags
+    if domain == "data_science_adjacent" and score >= 0.18:
+        return "adjacent_review", True, eligibility_exclusion, risk_flags
+    if score < 0.35:
+        return "exclude", False, "score_below_threshold", risk_flags
     if domain in {"ml_deep_learning", "generative_ai"} and score >= 0.35:
         return "adjacent_review", True, eligibility_exclusion, risk_flags
     return "exclude", False, eligibility_exclusion or "not_target", risk_flags

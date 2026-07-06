@@ -504,9 +504,11 @@ def test_evaluation_dataset_matches_current_classifier() -> None:
 
     summary = run_evaluation(cases)
 
-    assert summary.total == 5
+    assert summary.total >= 30
     assert summary.bucket_accuracy == 1.0
     assert summary.domain_accuracy == 1.0
     assert summary.accessibility_accuracy == 1.0
+    assert summary.target_precision == 1.0
+    assert summary.target_recall == 1.0
     assert summary.false_targets == 0
     assert summary.missed_targets == 0

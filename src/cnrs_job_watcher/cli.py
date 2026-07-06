@@ -271,6 +271,8 @@ def eval(
     console.print(f"[bold]Bucket accuracy[/bold] {summary.bucket_accuracy:.3f}")
     console.print(f"[bold]Domain accuracy[/bold] {summary.domain_accuracy:.3f}")
     console.print(f"[bold]Accessibility accuracy[/bold] {summary.accessibility_accuracy:.3f}")
+    console.print(f"[bold]Target precision[/bold] {summary.target_precision:.3f}")
+    console.print(f"[bold]Target recall[/bold] {summary.target_recall:.3f}")
     console.print(f"[bold]False targets[/bold] {summary.false_targets}")
     console.print(f"[bold]Missed targets[/bold] {summary.missed_targets}")
 
