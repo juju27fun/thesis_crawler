@@ -4,7 +4,7 @@ from pathlib import Path
 
 from cnrs_job_watcher.classify import apply_classification
 from cnrs_job_watcher.evaluation import load_evaluation_cases, run_evaluation
-from cnrs_job_watcher.export import export_markdown
+from cnrs_job_watcher.export import export_csv, export_markdown
 from cnrs_job_watcher.llm_classifier import classification_json_schema, classify_offer_hybrid
 from cnrs_job_watcher.parse import parse_list_page, parse_offer_detail
 from cnrs_job_watcher.profiles import SearchProfile, dedupe_offers, filter_offers_by_profile
@@ -188,6 +188,24 @@ def test_classification_targets_bac5_it_ai_cdd() -> None:
     assert classified.ai_category == "ml_deep_learning"
 
 
+def test_adjacent_review_reason_is_not_exclusion_copy() -> None:
+    offer = JobOffer(
+        url="https://emploi.cnrs.fr/Offres/CDD/UMR8255-MATHUS-002/Default.aspx",
+        reference="UMR8255-MATHUS-002",
+        title="Ingénieur vision artificielle et analyse de documents",
+        contract_type="IT en contrat CDD",
+        education_level="BAC+3/4",
+        description="Computer vision, deep learning et analyse de documents.",
+        raw_text="Vision artificielle et PyTorch.",
+    )
+
+    classified = apply_classification(offer)
+
+    assert classified.target_bucket == "adjacent_review"
+    assert classified.ai_reason is not None
+    assert not classified.ai_reason.startswith("Exclue:")
+
+
 def test_llm_classifier_accepts_valid_structured_response() -> None:
     class FakeProvider:
         def classify(self, offer: JobOffer, schema: dict[str, object]) -> dict[str, object]:
@@ -368,6 +386,44 @@ def test_run_snapshot_and_digest_export(tmp_path: Path) -> None:
     )
 
 
+def test_exports_include_actionable_fields_and_exclusions(tmp_path: Path) -> None:
+    target = apply_classification(
+        JobOffer(
+            url="https://emploi.cnrs.fr/Offres/CDD/UMR5549-LESMAR-016/Default.aspx",
+            reference="UMR5549-LESMAR-016",
+            title="Ingénieur d'étude en Intelligence artificielle bio-inspirée",
+            contract_type="IT en contrat CDD",
+            education_level="BAC+5",
+            description="Deep learning, PyTorch et réseaux de neurones.",
+            raw_text="Machine learning et intelligence artificielle.",
+        )
+    )
+    excluded = apply_classification(
+        JobOffer(
+            url="https://emploi.cnrs.fr/Offres/CDD/UMR0000-ADMIN-001/Default.aspx",
+            reference="UMR0000-ADMIN-001",
+            title="Ingénieur instrumentation",
+            contract_type="IT en contrat CDD",
+            education_level="BAC+5",
+            description="Instrumentation et banc de mesure.",
+            raw_text="Instrumentation.",
+        )
+    )
+    markdown_path = tmp_path / "digest.md"
+    csv_path = tmp_path / "digest.csv"
+
+    export_markdown([target, excluded], markdown_path)
+    export_csv([target], csv_path)
+
+    markdown = markdown_path.read_text(encoding="utf-8")
+    csv_text = csv_path.read_text(encoding="utf-8")
+    assert "## Pertinentes mais à vérifier" in markdown
+    assert "## Exclusions notables" in markdown
+    assert "- Intérêt :" in markdown
+    assert "why_interesting" in csv_text
+    assert "contract,level" in csv_text
+
+
 def test_llm_cache_round_trips_by_content_hash(tmp_path: Path) -> None:
     connection = connect(tmp_path / "llm-cache.sqlite")
     payload = {
@@ -432,6 +488,7 @@ def test_sqlite_migration_adds_target_columns_to_existing_database(tmp_path: Pat
         "accessibility",
         "exclusion_reason",
         "short_summary",
+        "why_interesting",
         "risk_flags",
         "classifier_version",
         "content_hash",

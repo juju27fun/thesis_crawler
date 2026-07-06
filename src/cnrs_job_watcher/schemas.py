@@ -44,6 +44,7 @@ class JobOffer(BaseModel):
     accessibility: Accessibility = "unclear"
     exclusion_reason: str | None = None
     short_summary: str | None = None
+    why_interesting: str | None = None
     risk_flags: list[str] = Field(default_factory=list)
     classifier_version: str = "rules-v1"
     content_hash: str | None = None
@@ -64,6 +65,7 @@ class Classification(BaseModel):
     accessibility: Accessibility
     exclusion_reason: str | None = None
     short_summary: str | None = None
+    why_interesting: str | None = None
     risk_flags: list[str] = Field(default_factory=list)
     classifier_version: str = "rules-v1"
     reason: str

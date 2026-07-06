@@ -137,9 +137,17 @@ def classify_offer(offer: JobOffer) -> Classification:
         negative_hits,
         hard_filter_passed,
         offer,
+        target_bucket,
         exclusion_reason,
     )
     short_summary = _build_short_summary(offer, domain, target_bucket)
+    why_interesting = _build_why_interesting(
+        offer=offer,
+        domain=domain,
+        bucket=target_bucket,
+        score=score,
+        exclusion_reason=exclusion_reason,
+    )
 
     return Classification(
         is_target=is_target,
@@ -150,6 +158,7 @@ def classify_offer(offer: JobOffer) -> Classification:
         accessibility=accessibility,
         exclusion_reason=exclusion_reason,
         short_summary=short_summary,
+        why_interesting=why_interesting,
         risk_flags=risk_flags,
         classifier_version=CLASSIFIER_VERSION,
         reason=reason,
@@ -166,6 +175,7 @@ def apply_classification(offer: JobOffer) -> JobOffer:
             "accessibility": classification.accessibility,
             "exclusion_reason": classification.exclusion_reason,
             "short_summary": classification.short_summary,
+            "why_interesting": classification.why_interesting,
             "risk_flags": classification.risk_flags,
             "classifier_version": classification.classifier_version,
             "last_classified_at": datetime.now(UTC),
@@ -278,9 +288,10 @@ def _build_reason(
     negative_hits: list[str],
     hard_filter_passed: bool,
     offer: JobOffer,
+    target_bucket: TargetBucket,
     exclusion_reason: str | None,
 ) -> str:
-    if exclusion_reason:
+    if exclusion_reason and target_bucket == "exclude":
         return f"Exclue: {exclusion_reason}."
     if negative_hits:
         return f"Signal d'exclusion potentiel ({negative_hits[0]}) malgré quelques mots-clés."
@@ -305,3 +316,29 @@ def _build_short_summary(offer: JobOffer, domain: str, bucket: TargetBucket) -> 
     }[domain]
     contract = offer.contract_type or "contrat non précisé"
     return f"{contract} classé {bucket} pour {label}."
+
+
+def _build_why_interesting(
+    *,
+    offer: JobOffer,
+    domain: str,
+    bucket: TargetBucket,
+    score: float,
+    exclusion_reason: str | None,
+) -> str:
+    if bucket == "exclude":
+        return f"À ignorer pour la veille actuelle: {exclusion_reason or 'hors cible'}."
+    level = offer.education_level or "niveau à vérifier"
+    contract = offer.contract_type or "contrat à vérifier"
+    domain_label = {
+        "generative_ai": "IA générative",
+        "ml_deep_learning": "IA/ML",
+        "general_ai": "IA",
+        "data_science_adjacent": "data/data science",
+        "not_relevant": "signal IA faible",
+    }[domain]
+    if bucket == "primary_target":
+        return f"Prioritaire: {contract} {level}, sujet {domain_label}, score {score:.2f}."
+    if bucket == "secondary_target":
+        return f"Bonne piste CDD: {contract} {level}, travail {domain_label}, score {score:.2f}."
+    return f"À relire: signal {domain_label}, mais contrat/niveau à confirmer, score {score:.2f}."

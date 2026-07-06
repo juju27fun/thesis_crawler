@@ -41,6 +41,7 @@ uv run cnrs-jobs export --format markdown --output cnrs_ia_jobs.md
 uv run cnrs-jobs export --format csv --output cnrs_ia_jobs.csv
 uv run cnrs-jobs audit
 uv run cnrs-jobs digest
+uv run cnrs-jobs digest --include-excluded
 uv run cnrs-jobs eval
 ```
 
@@ -57,6 +58,10 @@ localement.
 Le classifieur par défaut est `rules`, sans appel externe. Le mode `hybrid` utilise
 `OPENAI_API_KEY` quand elle est disponible, valide la réponse par JSON Schema strict, puis met en
 cache la décision par hash HTML de l'offre. Sans clé API, il retombe sur les règles locales.
+
+`--include-excluded` ajoute les exclusions notables au Markdown/CSV pour auditer le bruit proche du
+seuil sans modifier la shortlist par défaut. Un exemple cron local est disponible dans
+`docs/local_automation.md`.
 
 ## Development contract
 

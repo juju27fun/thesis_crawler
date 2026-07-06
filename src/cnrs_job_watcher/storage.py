@@ -42,6 +42,7 @@ def initialize(connection: sqlite3.Connection) -> None:
             accessibility TEXT NOT NULL DEFAULT 'unclear',
             exclusion_reason TEXT,
             short_summary TEXT,
+            why_interesting TEXT,
             risk_flags TEXT NOT NULL DEFAULT '[]',
             classifier_version TEXT NOT NULL DEFAULT 'rules-v1',
             content_hash TEXT,
@@ -118,6 +119,7 @@ def _add_missing_columns(connection: sqlite3.Connection) -> None:
         "accessibility": "TEXT NOT NULL DEFAULT 'unclear'",
         "exclusion_reason": "TEXT",
         "short_summary": "TEXT",
+        "why_interesting": "TEXT",
         "risk_flags": "TEXT NOT NULL DEFAULT '[]'",
         "classifier_version": "TEXT NOT NULL DEFAULT 'rules-v1'",
         "content_hash": "TEXT",
@@ -144,16 +146,16 @@ def upsert_offer(connection: sqlite3.Connection, offer: JobOffer) -> None:
             url, source, reference, title, contract_type, duration, education_level,
             experience_level, location, lab, published_at_text, description, skills,
             raw_text, unavailable, hard_filter_passed, is_target, target_bucket,
-            accessibility, exclusion_reason, short_summary, risk_flags, classifier_version,
-            content_hash, last_classified_at, ai_relevance_score, ai_category, ai_reason,
-            first_seen_at, last_seen_at
+            accessibility, exclusion_reason, short_summary, why_interesting, risk_flags,
+            classifier_version, content_hash, last_classified_at, ai_relevance_score,
+            ai_category, ai_reason, first_seen_at, last_seen_at
         ) VALUES (
             :url, :source, :reference, :title, :contract_type, :duration, :education_level,
             :experience_level, :location, :lab, :published_at_text, :description, :skills,
             :raw_text, :unavailable, :hard_filter_passed, :is_target, :target_bucket,
-            :accessibility, :exclusion_reason, :short_summary, :risk_flags, :classifier_version,
-            :content_hash, :last_classified_at, :ai_relevance_score, :ai_category, :ai_reason,
-            :first_seen_at, :last_seen_at
+            :accessibility, :exclusion_reason, :short_summary, :why_interesting, :risk_flags,
+            :classifier_version, :content_hash, :last_classified_at, :ai_relevance_score,
+            :ai_category, :ai_reason, :first_seen_at, :last_seen_at
         )
         ON CONFLICT(url) DO UPDATE SET
             reference = excluded.reference,
@@ -175,6 +177,7 @@ def upsert_offer(connection: sqlite3.Connection, offer: JobOffer) -> None:
             accessibility = excluded.accessibility,
             exclusion_reason = excluded.exclusion_reason,
             short_summary = excluded.short_summary,
+            why_interesting = excluded.why_interesting,
             risk_flags = excluded.risk_flags,
             classifier_version = excluded.classifier_version,
             content_hash = excluded.content_hash,
@@ -213,6 +216,27 @@ def shortlist(
           END,
           ai_relevance_score DESC,
           title ASC
+        """,
+        parameters,
+    ).fetchall()
+    return [_row_to_offer(row) for row in rows]
+
+
+def excluded_offers(
+    connection: sqlite3.Connection,
+    limit: int = 20,
+    since: str | None = None,
+) -> list[JobOffer]:
+    since_filter = "AND first_seen_at >= ?" if since else ""
+    parameters: tuple[object, ...] = (since, limit) if since else (limit,)
+    rows = connection.execute(
+        f"""
+        SELECT * FROM offers
+        WHERE unavailable = 0
+          AND is_target = 0
+          {since_filter}
+        ORDER BY COALESCE(ai_relevance_score, 0) DESC, title ASC
+        LIMIT ?
         """,
         parameters,
     ).fetchall()

@@ -26,6 +26,7 @@ from cnrs_job_watcher.schemas import JobOffer
 from cnrs_job_watcher.storage import (
     audit_counts,
     connect,
+    excluded_offers,
     finish_run,
     get_llm_cache,
     latest_run_started_at,
@@ -175,11 +176,14 @@ def export_command(
     db: Path = typer.Option(Path("data/cnrs_jobs.sqlite"), help="Base SQLite locale."),
     min_score: float = typer.Option(0.35, min=0, max=1, help="Score minimum à exporter."),
     only_new: bool = typer.Option(False, help="Exporter seulement les offres du dernier run."),
+    include_excluded: bool = typer.Option(False, help="Inclure les exclusions notables."),
 ) -> None:
     """Exporte la shortlist locale en Markdown et/ou CSV."""
     connection = connect(db)
     since = latest_run_started_at(connection) if only_new else None
     offers = shortlist(connection, min_score=min_score, since=since)
+    if include_excluded:
+        offers.extend(excluded_offers(connection, since=since))
 
     if format not in {"markdown", "csv", "both"}:
         raise typer.BadParameter("format doit valoir markdown, csv ou both")
@@ -303,11 +307,14 @@ def digest(
         True,
         help="Limiter aux offres vues pour la première fois au dernier run.",
     ),
+    include_excluded: bool = typer.Option(False, help="Inclure les exclusions notables."),
 ) -> None:
     """Produit un digest Markdown daté, pensé pour une veille quotidienne."""
     connection = connect(db)
     since = latest_run_started_at(connection) if only_new else None
     offers = shortlist(connection, min_score=min_score, since=since)
+    if include_excluded:
+        offers.extend(excluded_offers(connection, since=since))
     output_path = output or Path("data/digests") / f"{datetime.now(UTC).date().isoformat()}.md"
     export_markdown(offers, output_path)
     scope = "nouvelles offres" if only_new else "shortlist complète"

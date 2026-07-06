@@ -7,9 +7,9 @@ from cnrs_job_watcher.schemas import JobOffer, TargetBucket
 
 BUCKET_TITLES: dict[TargetBucket, str] = {
     "primary_target": "Très pertinentes",
-    "secondary_target": "Pertinentes",
-    "adjacent_review": "À vérifier",
-    "exclude": "Exclues",
+    "secondary_target": "Pertinentes mais à vérifier",
+    "adjacent_review": "Adjacentes / revue manuelle",
+    "exclude": "Exclusions notables",
 }
 
 
@@ -40,6 +40,7 @@ def export_markdown(offers: list[JobOffer], output: Path) -> None:
                     f"- Publication : {offer.published_at_text or 'n/a'}",
                     f"- Score : {score}",
                     f"- Résumé : {offer.short_summary or 'n/a'}",
+                    f"- Intérêt : {offer.why_interesting or 'n/a'}",
                     f"- Pourquoi : {offer.ai_reason or 'n/a'}",
                     f"- Flags : {flags}",
                     f"- Lien : {offer.url}",
@@ -59,6 +60,8 @@ def export_csv(offers: list[JobOffer], output: Path) -> None:
                 "bucket",
                 "score",
                 "title",
+                "contract",
+                "level",
                 "contract_type",
                 "duration",
                 "education_level",
@@ -67,6 +70,7 @@ def export_csv(offers: list[JobOffer], output: Path) -> None:
                 "published_at_text",
                 "category",
                 "summary",
+                "why_interesting",
                 "reason",
                 "flags",
                 "url",
@@ -80,6 +84,8 @@ def export_csv(offers: list[JobOffer], output: Path) -> None:
                     "bucket": offer.target_bucket,
                     "score": offer.ai_relevance_score,
                     "title": offer.title,
+                    "contract": offer.contract_type,
+                    "level": offer.education_level,
                     "contract_type": offer.contract_type,
                     "duration": offer.duration,
                     "education_level": offer.education_level,
@@ -88,6 +94,7 @@ def export_csv(offers: list[JobOffer], output: Path) -> None:
                     "published_at_text": offer.published_at_text,
                     "category": offer.ai_category,
                     "summary": offer.short_summary,
+                    "why_interesting": offer.why_interesting,
                     "reason": offer.ai_reason,
                     "flags": ",".join(offer.risk_flags),
                     "url": str(offer.url),

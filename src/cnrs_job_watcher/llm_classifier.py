@@ -125,6 +125,7 @@ def classify_offer_hybrid(
             "ai_category": llm_result.ai_domain,
             "ai_reason": llm_result.reason,
             "short_summary": llm_result.short_summary,
+            "why_interesting": llm_result.reason,
             "risk_flags": llm_result.risk_flags,
             "classifier_version": "hybrid-llm-v1",
         }
