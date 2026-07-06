@@ -7,7 +7,7 @@ import httpx
 from cnrs_job_watcher.classify import apply_classification
 from cnrs_job_watcher.evaluation import load_evaluation_cases, run_evaluation
 from cnrs_job_watcher.export import export_csv, export_markdown
-from cnrs_job_watcher.fetch import CnrsClient
+from cnrs_job_watcher.fetch import CnrsClient, parse_offer_sitemap_urls
 from cnrs_job_watcher.llm_classifier import classification_json_schema, classify_offer_hybrid
 from cnrs_job_watcher.parse import parse_list_page, parse_offer_detail
 from cnrs_job_watcher.profiles import SearchProfile, dedupe_offers, filter_offers_by_profile
@@ -28,6 +28,17 @@ from cnrs_job_watcher.storage import (
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
+SITEMAP_FIXTURE = """<?xml version="1.0" encoding="utf-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://emploi.cnrs.fr/Offres.aspx</loc></url>
+  <url><loc>emploi.cnrs.fr/Offres/Doctorant/UPR8001-JUACOR-012/Default.aspx</loc></url>
+  <url><loc>emploi.cnrs.fr/Offres/Doctorant/UMR7654-PHINGH-001/Default.aspx</loc></url>
+  <url><loc>emploi.cnrs.fr/Offres/CDD/UMR5549-LESMAR-016/Default.aspx</loc></url>
+  <url><loc>emploi.cnrs.fr/Offres/PASS/UMR0000-STAGE-001/Default.aspx</loc></url>
+  <url><loc>emploi.cnrs.fr/Offres/Doctorant/UPR8001-JUACOR-012/Default.aspx</loc></url>
+</urlset>
+"""
+
 
 def test_parse_list_page_extracts_cards_and_stats() -> None:
     html = (FIXTURES / "list_page.html").read_text(encoding="utf-8")
@@ -45,6 +56,23 @@ def test_parse_list_page_extracts_cards_and_stats() -> None:
     assert offers[0].duration == "36 mois"
     assert offers[0].education_level == "BAC+5"
     assert offers[0].location == "RENNES • Ille-et-Vilaine"
+
+
+def test_parse_offer_sitemap_urls_extracts_target_public_offer_urls() -> None:
+    urls = parse_offer_sitemap_urls(SITEMAP_FIXTURE)
+
+    assert urls == [
+        "https://emploi.cnrs.fr/Offres/Doctorant/UPR8001-JUACOR-012/Default.aspx",
+        "https://emploi.cnrs.fr/Offres/Doctorant/UMR7654-PHINGH-001/Default.aspx",
+        "https://emploi.cnrs.fr/Offres/CDD/UMR5549-LESMAR-016/Default.aspx",
+    ]
+
+
+def test_sitemap_regression_includes_missed_arn_and_protein_theses() -> None:
+    urls = parse_offer_sitemap_urls(SITEMAP_FIXTURE)
+
+    assert any("UPR8001-JUACOR-012" in url for url in urls)
+    assert any("UMR7654-PHINGH-001" in url for url in urls)
 
 
 def test_parse_offer_detail_extracts_reference_and_description() -> None:
@@ -133,6 +161,61 @@ def test_classification_targets_generative_ai_thesis() -> None:
     assert classified.ai_category == "generative_ai"
     assert classified.ai_relevance_score is not None
     assert classified.ai_relevance_score >= 0.7
+
+
+def test_classification_targets_missed_protein_generative_ai_thesis() -> None:
+    offer = JobOffer(
+        url="https://emploi.cnrs.fr/Offres/Doctorant/UPR8001-JUACOR-012/Default.aspx",
+        reference="UPR8001-JUACOR-012",
+        title=(
+            "Contrat Doctoral (H/F) en Intelligence Artificielle Générative "
+            "pour la Modélisation de la Flexibilité des Protéines"
+        ),
+        contract_type="CDD Doctorant",
+        duration="36 mois",
+        education_level="Doctorat",
+        description=(
+            "Développer des méthodes d'intelligence artificielle pour prédire "
+            "les conformations de protéines. Le projet s'appuiera sur "
+            "l'apprentissage profond, les modèles génératifs de type flow "
+            "matching, les modèles de langage pour protéines et PyTorch."
+        ),
+        raw_text="Apprentissage automatique, protéines, PyTorch.",
+    )
+
+    classified = apply_classification(offer)
+
+    assert classified.is_target is True
+    assert classified.target_bucket == "primary_target"
+    assert classified.ai_category == "generative_ai"
+    assert classified.ai_relevance_score is not None
+    assert classified.ai_relevance_score >= 0.7
+
+
+def test_classification_targets_missed_rna_ai_thesis() -> None:
+    offer = JobOffer(
+        url="https://emploi.cnrs.fr/Offres/Doctorant/UMR7654-PHINGH-001/Default.aspx",
+        reference="UMR7654-PHINGH-001",
+        title="Doctorant /(H/F) en intelligence artificielle pour l'ARN",
+        contract_type="CDD Doctorant",
+        duration="36 mois",
+        education_level="BAC+5",
+        description=(
+            "Développer des modèles hybrides mêlant apprentissage statistique "
+            "et modélisation physique afin d'identifier les réseaux "
+            "d'interactions ARN-ARN. Le projet utilisera des modèles "
+            "probabilistes et génératifs, DCA et Variational Autoencoders."
+        ),
+        raw_text="ARN, VAE, Python.",
+    )
+
+    classified = apply_classification(offer)
+
+    assert classified.is_target is True
+    assert classified.target_bucket == "primary_target"
+    assert classified.ai_category == "generative_ai"
+    assert classified.ai_relevance_score is not None
+    assert classified.ai_relevance_score >= 0.6
 
 
 def test_classification_excludes_postdoc_doctorate_required() -> None:
@@ -472,6 +555,9 @@ def test_source_specific_round_trip_and_source_filter(tmp_path: Path) -> None:
 
 def test_cnrs_source_adapter_normalizes_source() -> None:
     class FakeClient:
+        def fetch_offer_sitemap(self, use_cache: bool = True) -> str:
+            return SITEMAP_FIXTURE
+
         def fetch_list_page(self, page: int = 1, use_cache: bool = True) -> str:
             return (FIXTURES / "list_page.html").read_text(encoding="utf-8")
 
@@ -481,9 +567,11 @@ def test_cnrs_source_adapter_normalizes_source() -> None:
     adapter = CnrsSourceAdapter(FakeClient())
 
     offers, stats = adapter.discover()
+    urls = adapter.discover_urls()
     detail = adapter.parse_detail(adapter.fetch_detail(str(offers[0].url)), str(offers[0].url))
 
     assert stats.total_pages == 13
+    assert "https://emploi.cnrs.fr/Offres/Doctorant/UMR7654-PHINGH-001/Default.aspx" in urls
     assert offers[0].source == "cnrs"
     assert detail.source == "cnrs"
 

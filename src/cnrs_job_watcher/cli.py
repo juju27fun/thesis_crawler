@@ -4,6 +4,7 @@ import hashlib
 import json
 from collections.abc import Mapping
 from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 
 import typer
@@ -43,12 +44,17 @@ app = typer.Typer(no_args_is_help=True)
 console = Console()
 
 
+class DiscoveryMode(StrEnum):
+    SITEMAP = "sitemap"
+    LIST = "list"
+
+
 @app.command()
 def crawl(
     limit_pages: int = typer.Option(
         1,
         min=1,
-        help="Nombre maximum de pages de résultats à explorer.",
+        help="Nombre maximum de pages liste à explorer en mode --discovery list.",
     ),
     limit_offers: int | None = typer.Option(
         None,
@@ -74,12 +80,17 @@ def crawl(
         ClassifierMode.RULES,
         help="Classifieur à utiliser: rules, llm ou hybrid.",
     ),
+    discovery: DiscoveryMode = typer.Option(
+        DiscoveryMode.SITEMAP,
+        help="Source de découverte: sitemap exhaustif ou pagination liste legacy.",
+    ),
 ) -> None:
     """Récupère les offres publiques CNRS, parse les détails, classe et stocke."""
     discovered = []
     pages_to_fetch = 0
     pages_fetched = 0
     offers_fetched = 0
+    discovered_count = 0
     errors_count = 0
     connection = connect(db)
     run_id = start_run(connection, profile=profile.value)
@@ -94,20 +105,30 @@ def crawl(
             max_retries=max_retries,
         ) as client:
             source_adapter = CnrsSourceAdapter(client)
-            first_html = client.fetch_list_page(1, use_cache=not no_cache)
-            pages_fetched += 1
-            first_offers, stats = parse_list_page(first_html)
-            pages_to_fetch = min(limit_pages, stats.total_pages or limit_pages)
-            discovered.extend(first_offers)
-
-            for page in range(2, pages_to_fetch + 1):
-                html = client.fetch_list_page(page, use_cache=not no_cache)
+            if discovery == DiscoveryMode.SITEMAP:
+                offer_urls = _filter_sitemap_urls_by_profile(
+                    source_adapter.discover_urls(use_cache=not no_cache),
+                    profile,
+                )
+                pages_fetched = 1
+                pages_to_fetch = 1
+                discovered_count = len(offer_urls)
+            else:
+                first_html = client.fetch_list_page(1, use_cache=not no_cache)
                 pages_fetched += 1
-                offers, _ = parse_list_page(html)
-                discovered.extend(offers)
+                first_offers, stats = parse_list_page(first_html)
+                pages_to_fetch = min(limit_pages, stats.total_pages or limit_pages)
+                discovered.extend(first_offers)
 
-            filtered = filter_offers_by_profile(dedupe_offers(discovered), profile)
-            offer_urls = [str(offer.url) for offer in filtered]
+                for page in range(2, pages_to_fetch + 1):
+                    html = client.fetch_list_page(page, use_cache=not no_cache)
+                    pages_fetched += 1
+                    offers, _ = parse_list_page(html)
+                    discovered.extend(offers)
+
+                filtered = filter_offers_by_profile(dedupe_offers(discovered), profile)
+                offer_urls = [str(offer.url) for offer in filtered]
+                discovered_count = len(filtered)
             if limit_offers:
                 offer_urls = offer_urls[:limit_offers]
 
@@ -139,17 +160,18 @@ def crawl(
             connection,
             run_id,
             pages_fetched=pages_fetched,
-            offers_discovered=len(filter_offers_by_profile(dedupe_offers(discovered), profile)),
+            offers_discovered=discovered_count,
             offers_fetched=offers_fetched,
             errors_count=errors_count,
         )
 
     console.print(
         f"[green]OK[/green] {offers_fetched} offres traitées dans {db}. "
-        f"Pages liste explorées: {pages_to_fetch}. Run: {run_id}. "
+        f"Découverte: {discovery.value}. Pages liste explorées: {pages_to_fetch}. "
+        f"Run: {run_id}. "
         f"Erreurs: {errors_count}."
     )
-    if not discovered or offers_fetched == 0:
+    if discovered_count == 0 or offers_fetched == 0:
         raise typer.Exit(code=1)
     total_attempted = offers_fetched + errors_count
     if total_attempted and errors_count / total_attempted > max_error_rate:
@@ -387,3 +409,9 @@ def _classify_offer(
         "hybrid-llm-v1",
     )
     return classify_offer_hybrid(offer, cached_provider)
+
+
+def _filter_sitemap_urls_by_profile(urls: list[str], profile: SearchProfile) -> list[str]:
+    if profile == SearchProfile.DOCTORANT:
+        return [url for url in urls if "/Offres/Doctorant/" in url]
+    return urls

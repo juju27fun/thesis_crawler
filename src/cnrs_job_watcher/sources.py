@@ -23,6 +23,9 @@ class SourceAdapter(Protocol):
     def parse_detail(self, payload: str, url: str) -> JobOffer:
         """Normalize a source-specific detail payload into a JobOffer."""
 
+    def discover_urls(self, use_cache: bool = True) -> list[str]:
+        """Return canonical detail URLs when the source exposes an inventory."""
+
 
 class CnrsSourceAdapter:
     source = "cnrs"
@@ -41,6 +44,11 @@ class CnrsSourceAdapter:
             offer.model_copy(update={"source": self.source, "source_specific": {}})
             for offer in offers
         ], stats
+
+    def discover_urls(self, use_cache: bool = True) -> list[str]:
+        from cnrs_job_watcher.fetch import parse_offer_sitemap_urls
+
+        return parse_offer_sitemap_urls(self.client.fetch_offer_sitemap(use_cache=use_cache))
 
     def fetch_detail(self, url: str, use_cache: bool = True) -> str:
         return self.client.fetch_offer_page(url, use_cache=use_cache)

@@ -11,9 +11,17 @@ STRONG_TERMS = {
     "deep learning": "deep learning",
     "apprentissage automatique": "apprentissage automatique",
     "intelligence artificielle": "intelligence artificielle",
+    "intelligence artificielle générative": "IA générative",
+    "intelligence artificielle generative": "IA générative",
     "ia générative": "IA générative",
     "modèle génératif": "modèles génératifs",
+    "modèles génératifs": "modèles génératifs",
     "modeles generatifs": "modèles génératifs",
+    "modèles probabilistes et génératifs": "modèles génératifs",
+    "modeles probabilistes et generatifs": "modèles génératifs",
+    "variational autoencoder": "modèles génératifs",
+    "variational autoencoders": "modèles génératifs",
+    "vae": "modèles génératifs",
     "réseaux de neurones": "réseaux de neurones",
     "reseaux de neurones": "réseaux de neurones",
     "neural network": "neural network",
@@ -85,15 +93,16 @@ EXCLUDED_CONTRACT_TERMS = {
 
 
 def classify_offer(offer: JobOffer) -> Classification:
+    body_text = " ".join(value for value in [offer.description or "", offer.skills or ""] if value)
+    if not body_text:
+        body_text = offer.raw_text
     text = " ".join(
         value
         for value in [
             offer.title,
             offer.contract_type or "",
             offer.education_level or "",
-            offer.description or "",
-            offer.skills or "",
-            offer.raw_text,
+            body_text,
         ]
         if value
     ).lower()

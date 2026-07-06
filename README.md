@@ -18,9 +18,9 @@ et exporte une shortlist exploitable en Markdown et CSV.
 
 ```bash
 uv sync
-uv run cnrs-jobs crawl --limit-pages 2 --limit-offers 25
-uv run cnrs-jobs crawl --profile doctorant --limit-pages 2
-uv run cnrs-jobs crawl --classifier hybrid --limit-pages 1 --limit-offers 10
+uv run cnrs-jobs crawl
+uv run cnrs-jobs crawl --profile doctorant --limit-offers 25
+uv run cnrs-jobs crawl --classifier hybrid --limit-offers 10
 uv run cnrs-jobs export
 ```
 
@@ -35,7 +35,8 @@ Sorties par défaut :
 ## Commandes
 
 ```bash
-uv run cnrs-jobs crawl --limit-pages 13
+uv run cnrs-jobs crawl
+uv run cnrs-jobs crawl --discovery list --limit-pages 13
 uv run cnrs-jobs profile-audit --limit-pages 2
 uv run cnrs-jobs export --format markdown --output cnrs_ia_jobs.md
 uv run cnrs-jobs export --format csv --output cnrs_ia_jobs.csv
@@ -51,11 +52,11 @@ Le crawler respecte les zones publiques du site et limite volontairement le ryth
 L'IA générative n'est pas utilisée comme crawler : elle doit rester une étape de classification
 sémantique optionnelle après extraction.
 
-Les profils `doctorant`, `cdd_bac5` et `ai_audit` filtrent les cartes de résultats avant
-téléchargement des pages détail. Le formulaire CNRS expose bien des valeurs serveur comme
-`DOCTOR`, `ITCDD` et `CHRCDD`, mais le POST filtré dépend du comportement ASP.NET/JavaScript ;
-le crawler conserve donc le parcours public général comme source robuste, puis applique ces profils
-localement.
+La découverte par défaut utilise le sitemap public CNRS des offres, puis récupère toutes les URLs
+`/Offres/Doctorant/` et `/Offres/CDD/`. C'est la source robuste pour éviter les faux négatifs de
+pagination. `--discovery list` conserve l'ancien parcours par pages de résultats uniquement comme
+fallback/audit. Le profil `doctorant` filtre les URLs sitemap avant téléchargement ; les autres
+profils larges classent après parsing des pages détail.
 
 Le classifieur par défaut est `rules`, sans appel externe. Le mode `hybrid` utilise
 `OPENAI_API_KEY` quand elle est disponible, valide la réponse par JSON Schema strict, puis met en
@@ -81,7 +82,7 @@ uv run pytest
 Pour valider le comportement réel CNRS sur un petit échantillon :
 
 ```bash
-uv run cnrs-jobs crawl --limit-pages 1 --limit-offers 5 \
+uv run cnrs-jobs crawl --limit-offers 5 \
   --db /tmp/cnrs_smoke.sqlite \
   --raw-dir /tmp/cnrs_smoke_raw \
   --max-error-rate 0.2 \
@@ -90,6 +91,14 @@ uv run cnrs-jobs export --db /tmp/cnrs_smoke.sqlite --min-score 0.25
 uv run cnrs-jobs audit --db /tmp/cnrs_smoke.sqlite
 uv run cnrs-jobs digest --db /tmp/cnrs_smoke.sqlite --output /tmp/cnrs_digest.md
 uv run cnrs-jobs eval
+```
+
+Pour valider la couverture sitemap des thèses ratées par la pagination :
+
+```bash
+uv run cnrs-jobs crawl --discovery sitemap --profile doctorant --limit-offers 165 \
+  --db /tmp/cnrs_sitemap_refs.sqlite \
+  --raw-dir /tmp/cnrs_sitemap_refs_raw
 ```
 
 Les bases SQLite, snapshots HTML et exports générés restent hors Git.

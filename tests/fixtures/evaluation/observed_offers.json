@@ -382,7 +382,7 @@
   {
     "reference": "UAR3461-REGOPR-026",
     "expected_bucket": "exclude",
-    "expected_ai_domain": "ml_deep_learning",
+    "expected_ai_domain": "data_science_adjacent",
     "expected_accessibility": "unclear",
     "notes": "Observed CNRS crawl 2026-07-06; auto-labeled by rules-v2 baseline for regression.",
     "offer": {
@@ -620,7 +620,7 @@
   {
     "reference": "UMR7370-CLABLI-013",
     "expected_bucket": "exclude",
-    "expected_ai_domain": "data_science_adjacent",
+    "expected_ai_domain": "not_relevant",
     "expected_accessibility": "unclear",
     "notes": "Observed CNRS crawl 2026-07-06; auto-labeled by rules-v2 baseline for regression.",
     "offer": {
@@ -763,7 +763,7 @@
   {
     "reference": "UMR7288-AUDBAR-083",
     "expected_bucket": "adjacent_review",
-    "expected_ai_domain": "ml_deep_learning",
+    "expected_ai_domain": "generative_ai",
     "expected_accessibility": "unclear",
     "notes": "Observed CNRS crawl 2026-07-06; auto-labeled by rules-v2 baseline for regression.",
     "offer": {
@@ -953,7 +953,7 @@
   {
     "reference": "UMR9001-REMBRA-024",
     "expected_bucket": "exclude",
-    "expected_ai_domain": "data_science_adjacent",
+    "expected_ai_domain": "not_relevant",
     "expected_accessibility": "unclear",
     "notes": "Observed CNRS crawl 2026-07-06; auto-labeled by rules-v2 baseline for regression.",
     "offer": {
@@ -1096,7 +1096,7 @@
   {
     "reference": "UMR8023-ERWALL-002",
     "expected_bucket": "exclude",
-    "expected_ai_domain": "ml_deep_learning",
+    "expected_ai_domain": "generative_ai",
     "expected_accessibility": "doctorate_required",
     "notes": "Observed CNRS crawl 2026-07-06; auto-labeled by rules-v2 baseline for regression.",
     "offer": {

@@ -11,7 +11,6 @@ Depuis la racine du dépôt :
 uv run cnrs-jobs crawl \
   --profile ai_audit \
   --classifier hybrid \
-  --limit-pages 4 \
   --db data/cnrs_jobs.sqlite \
   --raw-dir data/raw
 
@@ -31,7 +30,7 @@ Sans `OPENAI_API_KEY`, `--classifier hybrid` retombe sur les règles locales.
 Adapter le chemin du dépôt si nécessaire :
 
 ```cron
-15 8 * * * cd /Users/julienleboulch/Documents/Scraping_Thèse && mkdir -p data/logs data/digests && uv run cnrs-jobs crawl --profile ai_audit --classifier hybrid --limit-pages 4 --db data/cnrs_jobs.sqlite --raw-dir data/raw >> data/logs/cnrs-jobs.log 2>&1 && uv run cnrs-jobs digest --db data/cnrs_jobs.sqlite --min-score 0.35 --only-new --output data/digests/$(date +\%F).md >> data/logs/cnrs-jobs.log 2>&1 && uv run cnrs-jobs audit --db data/cnrs_jobs.sqlite >> data/logs/cnrs-jobs.log 2>&1
+15 8 * * * cd /Users/julienleboulch/Documents/Scraping_Thèse && mkdir -p data/logs data/digests && uv run cnrs-jobs crawl --profile ai_audit --classifier hybrid --db data/cnrs_jobs.sqlite --raw-dir data/raw >> data/logs/cnrs-jobs.log 2>&1 && uv run cnrs-jobs digest --db data/cnrs_jobs.sqlite --min-score 0.35 --only-new --output data/digests/$(date +\%F).md >> data/logs/cnrs-jobs.log 2>&1 && uv run cnrs-jobs audit --db data/cnrs_jobs.sqlite >> data/logs/cnrs-jobs.log 2>&1
 ```
 
 ## Notifications

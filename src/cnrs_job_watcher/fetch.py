@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import httpx
@@ -9,6 +10,8 @@ from cnrs_job_watcher.text import slugify
 
 BASE_URL = "https://emploi.cnrs.fr"
 SEARCH_URL = f"{BASE_URL}/Offres/Recherche.aspx"
+OFFERS_SITEMAP_URL = f"{BASE_URL}/Sitemaps/OffresSiteMapProviderResult.ashx"
+TARGET_OFFER_PATHS = ("/Offres/Doctorant/", "/Offres/CDD/")
 
 
 class CnrsClient:
@@ -53,6 +56,17 @@ class CnrsClient:
         time.sleep(self.delay_seconds)
         return html
 
+    def fetch_offer_sitemap(self, use_cache: bool = True) -> str:
+        cache_path = self.cache_dir / "sitemap" / "offers.xml"
+        if use_cache and cache_path.exists():
+            return cache_path.read_text(encoding="utf-8")
+
+        response = self._request("GET", OFFERS_SITEMAP_URL)
+        xml = response.text
+        _write_snapshot(cache_path, xml)
+        time.sleep(self.delay_seconds)
+        return xml
+
     def fetch_offer_page(self, url: str, use_cache: bool = True) -> str:
         cache_path = self.offer_cache_path(url)
         if use_cache and cache_path.exists():
@@ -93,3 +107,40 @@ def _is_retryable(exc: Exception) -> bool:
 def _write_snapshot(path: Path, html: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(html, encoding="utf-8")
+
+
+def parse_offer_sitemap_urls(
+    xml: str,
+    include_paths: tuple[str, ...] = TARGET_OFFER_PATHS,
+) -> list[str]:
+    """Extract public CNRS offer URLs from the sitemap.
+
+    The CNRS sitemap sometimes emits loc values without a scheme, so URLs are
+    normalized before filtering.
+    """
+    root = ET.fromstring(xml.lstrip("\ufeff"))
+    namespace = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+    urls: list[str] = []
+    seen: set[str] = set()
+
+    for loc in root.findall(".//sm:loc", namespace):
+        if loc.text is None:
+            continue
+        url = _normalize_cnrs_url(loc.text.strip())
+        if not any(path in url for path in include_paths):
+            continue
+        if url in seen:
+            continue
+        seen.add(url)
+        urls.append(url)
+    return urls
+
+
+def _normalize_cnrs_url(url: str) -> str:
+    if url.startswith("https://") or url.startswith("http://"):
+        return url
+    if url.startswith("emploi.cnrs.fr"):
+        return f"https://{url}"
+    if url.startswith("/"):
+        return f"{BASE_URL}{url}"
+    return url
