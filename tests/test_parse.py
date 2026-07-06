@@ -2,6 +2,7 @@ import sqlite3
 from pathlib import Path
 
 from cnrs_job_watcher.classify import apply_classification
+from cnrs_job_watcher.evaluation import load_evaluation_cases, run_evaluation
 from cnrs_job_watcher.parse import parse_list_page, parse_offer_detail
 from cnrs_job_watcher.schemas import JobOffer
 from cnrs_job_watcher.storage import audit_counts, connect, shortlist, upsert_offer
@@ -207,3 +208,16 @@ def test_sqlite_migration_adds_target_columns_to_existing_database(tmp_path: Pat
         "risk_flags",
         "classifier_version",
     }.issubset(columns)
+
+
+def test_evaluation_dataset_matches_current_classifier() -> None:
+    cases = load_evaluation_cases(FIXTURES / "evaluation" / "offers.json")
+
+    summary = run_evaluation(cases)
+
+    assert summary.total == 5
+    assert summary.bucket_accuracy == 1.0
+    assert summary.domain_accuracy == 1.0
+    assert summary.accessibility_accuracy == 1.0
+    assert summary.false_targets == 0
+    assert summary.missed_targets == 0

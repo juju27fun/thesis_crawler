@@ -36,6 +36,7 @@ uv run cnrs-jobs crawl --limit-pages 13
 uv run cnrs-jobs export --format markdown --output cnrs_ia_jobs.md
 uv run cnrs-jobs export --format csv --output cnrs_ia_jobs.csv
 uv run cnrs-jobs audit
+uv run cnrs-jobs eval
 ```
 
 Le crawler respecte les zones publiques du site et limite volontairement le rythme des requêtes.
@@ -60,6 +61,11 @@ uv run cnrs-jobs crawl --limit-pages 1 --limit-offers 5 \
   --no-cache
 uv run cnrs-jobs export --db /tmp/cnrs_smoke.sqlite --min-score 0.25
 uv run cnrs-jobs audit --db /tmp/cnrs_smoke.sqlite
+uv run cnrs-jobs eval
 ```
 
 Les bases SQLite, snapshots HTML et exports générés restent hors Git.
+
+`cnrs-jobs eval` utilise actuellement un petit dataset annoté de démarrage. Son rôle est de
+bloquer les régressions critiques déjà observées ; il doit encore être enrichi vers au moins 30
+offres réelles pour mesurer sérieusement précision et rappel.

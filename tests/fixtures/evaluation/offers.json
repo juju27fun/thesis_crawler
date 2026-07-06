@@ -1,0 +1,92 @@
+[
+  {
+    "reference": "UMR6074-NICKER-008",
+    "expected_bucket": "primary_target",
+    "expected_ai_domain": "generative_ai",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "Thèse CDD Doctorant BAC+5 sur modèles génératifs.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/Doctorant/UMR6074-NICKER-008/Default.aspx",
+      "reference": "UMR6074-NICKER-008",
+      "title": "Thèse (H/F) Invariance et transférabilité dans les modèles génératifs",
+      "contract_type": "CDD Doctorant",
+      "duration": "36 mois",
+      "education_level": "BAC+5",
+      "description": "Sujet de thèse sur modèles génératifs, graph neural networks, diffusion models et transformers.",
+      "skills": "Python, PyTorch, machine learning, deep learning",
+      "raw_text": "Contrat doctoral BAC+5. IA générative, réseaux de neurones, modèles de diffusion."
+    }
+  },
+  {
+    "reference": "UMR5549-LESMAR-016",
+    "expected_bucket": "secondary_target",
+    "expected_ai_domain": "ml_deep_learning",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "IT CDD BAC+5 avec signaux IA/ML forts.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/CDD/UMR5549-LESMAR-016/Default.aspx",
+      "reference": "UMR5549-LESMAR-016",
+      "title": "Ingénieur d'étude en Intelligence artificielle bio-inspirée",
+      "contract_type": "IT en contrat CDD",
+      "duration": "18 mois",
+      "education_level": "BAC+5",
+      "description": "Développement Python de modèles de deep learning bio-inspirés avec PyTorch.",
+      "skills": "Python, machine learning, deep learning, réseaux de neurones",
+      "raw_text": "Intelligence artificielle, PyTorch, apprentissage automatique."
+    }
+  },
+  {
+    "reference": "UMR8023-ERWALL-002",
+    "expected_bucket": "exclude",
+    "expected_ai_domain": "ml_deep_learning",
+    "expected_accessibility": "doctorate_required",
+    "notes": "Postdoc avec doctorat requis, même si le sujet contient du ML.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/CDD/UMR8023-ERWALL-002/Default.aspx",
+      "reference": "UMR8023-ERWALL-002",
+      "title": "Post-doctorant en apprentissage automatique pour l'astrophysique",
+      "contract_type": "Chercheur en contrat CDD",
+      "duration": "24 mois",
+      "education_level": "Doctorat",
+      "description": "Doctorat requis. Développement de modèles de deep learning pour données astronomiques.",
+      "skills": "Python, machine learning, neural network",
+      "raw_text": "Postdoctorant. PhD required. Réseaux de neurones."
+    }
+  },
+  {
+    "reference": "UMR0000-ADMIN-001",
+    "expected_bucket": "exclude",
+    "expected_ai_domain": "not_relevant",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "CDD BAC+5 compatible contractuellement mais sans signal IA/ML.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/CDD/UMR0000-ADMIN-001/Default.aspx",
+      "reference": "UMR0000-ADMIN-001",
+      "title": "Ingénieur d'étude en instrumentation",
+      "contract_type": "IT en contrat CDD",
+      "duration": "12 mois",
+      "education_level": "BAC+5",
+      "description": "Développement d'un banc de mesure et documentation technique.",
+      "skills": "Instrumentation, optique, rédaction technique",
+      "raw_text": "CDD BAC+5 ingénieur instrumentation."
+    }
+  },
+  {
+    "reference": "UMR7288-AUDBAR-083",
+    "expected_bucket": "adjacent_review",
+    "expected_ai_domain": "ml_deep_learning",
+    "expected_accessibility": "unclear",
+    "notes": "BAC+3/4 très pertinent IA, à relire plutôt qu'à supprimer.",
+    "offer": {
+      "url": "https://emploi.cnrs.fr/Offres/CDD/UMR7288-AUDBAR-083/Default.aspx",
+      "reference": "UMR7288-AUDBAR-083",
+      "title": "Assistant ingénieur Smart-Microscopy et deep learning",
+      "contract_type": "IT en contrat CDD",
+      "duration": "12 mois",
+      "education_level": "BAC+3/4",
+      "description": "Développement de modules computer vision pour microscope intelligent.",
+      "skills": "Python, PyTorch, deep learning, machine learning, computer vision",
+      "raw_text": "Réseaux de neurones et apprentissage automatique pour imagerie."
+    }
+  }
+]

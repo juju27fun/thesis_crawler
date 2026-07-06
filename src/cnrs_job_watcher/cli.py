@@ -8,6 +8,7 @@ from rich.progress import track
 from rich.table import Table
 
 from cnrs_job_watcher.classify import apply_classification
+from cnrs_job_watcher.evaluation import load_evaluation_cases, run_evaluation
 from cnrs_job_watcher.export import export_csv, export_markdown
 from cnrs_job_watcher.fetch import CnrsClient
 from cnrs_job_watcher.parse import parse_list_page, parse_offer_detail
@@ -115,3 +116,50 @@ def audit(
     for reason, count in dict(counts["by_exclusion_reason"]).items():
         exclusion_table.add_row(str(reason), str(count))
     console.print(exclusion_table)
+
+
+@app.command()
+def eval(
+    dataset: Path = typer.Option(
+        Path("tests/fixtures/evaluation/offers.json"),
+        help="Dataset annoté JSON.",
+    ),
+    min_bucket_accuracy: float = typer.Option(
+        0.9,
+        min=0,
+        max=1,
+        help="Seuil minimal de justesse bucket.",
+    ),
+) -> None:
+    """Évalue la classification sur le dataset annoté local."""
+    summary = run_evaluation(load_evaluation_cases(dataset))
+
+    console.print(f"[bold]Cas évalués[/bold] {summary.total}")
+    console.print(f"[bold]Bucket accuracy[/bold] {summary.bucket_accuracy:.3f}")
+    console.print(f"[bold]Domain accuracy[/bold] {summary.domain_accuracy:.3f}")
+    console.print(f"[bold]Accessibility accuracy[/bold] {summary.accessibility_accuracy:.3f}")
+    console.print(f"[bold]False targets[/bold] {summary.false_targets}")
+    console.print(f"[bold]Missed targets[/bold] {summary.missed_targets}")
+
+    failures = [
+        result
+        for result in summary.results
+        if not (result.bucket_ok and result.domain_ok and result.accessibility_ok)
+    ]
+    if failures:
+        table = Table(title="Écarts")
+        table.add_column("Référence")
+        table.add_column("Bucket")
+        table.add_column("Domaine")
+        table.add_column("Accessibilité")
+        for result in failures:
+            table.add_row(
+                result.reference,
+                f"{result.expected_bucket} -> {result.actual_bucket}",
+                f"{result.expected_ai_domain} -> {result.actual_ai_domain}",
+                f"{result.expected_accessibility} -> {result.actual_accessibility}",
+            )
+        console.print(table)
+
+    if summary.bucket_accuracy < min_bucket_accuracy or summary.false_targets:
+        raise typer.Exit(code=1)
