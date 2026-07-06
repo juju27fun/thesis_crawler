@@ -23,6 +23,7 @@ def initialize(connection: sqlite3.Connection) -> None:
         CREATE TABLE IF NOT EXISTS offers (
             url TEXT PRIMARY KEY,
             source TEXT NOT NULL,
+            source_specific TEXT NOT NULL DEFAULT '{}',
             reference TEXT,
             title TEXT NOT NULL,
             contract_type TEXT,
@@ -114,6 +115,7 @@ def _add_missing_columns(connection: sqlite3.Connection) -> None:
         for row in connection.execute("PRAGMA table_info(offers)").fetchall()
     }
     columns = {
+        "source_specific": "TEXT NOT NULL DEFAULT '{}'",
         "is_target": "INTEGER NOT NULL DEFAULT 0",
         "target_bucket": "TEXT NOT NULL DEFAULT 'exclude'",
         "accessibility": "TEXT NOT NULL DEFAULT 'unclear'",
@@ -134,6 +136,7 @@ def upsert_offer(connection: sqlite3.Connection, offer: JobOffer) -> None:
     now = datetime.now(UTC).isoformat()
     payload = offer.model_dump(mode="json")
     payload["url"] = str(offer.url)
+    payload["source_specific"] = json.dumps(offer.source_specific, ensure_ascii=False)
     payload["unavailable"] = int(offer.unavailable)
     payload["hard_filter_passed"] = int(offer.hard_filter_passed)
     payload["is_target"] = int(offer.is_target)
@@ -143,14 +146,16 @@ def upsert_offer(connection: sqlite3.Connection, offer: JobOffer) -> None:
     connection.execute(
         """
         INSERT INTO offers (
-            url, source, reference, title, contract_type, duration, education_level,
+            url, source, source_specific, reference, title, contract_type, duration,
+            education_level,
             experience_level, location, lab, published_at_text, description, skills,
             raw_text, unavailable, hard_filter_passed, is_target, target_bucket,
             accessibility, exclusion_reason, short_summary, why_interesting, risk_flags,
             classifier_version, content_hash, last_classified_at, ai_relevance_score,
             ai_category, ai_reason, first_seen_at, last_seen_at
         ) VALUES (
-            :url, :source, :reference, :title, :contract_type, :duration, :education_level,
+            :url, :source, :source_specific, :reference, :title, :contract_type,
+            :duration, :education_level,
             :experience_level, :location, :lab, :published_at_text, :description, :skills,
             :raw_text, :unavailable, :hard_filter_passed, :is_target, :target_bucket,
             :accessibility, :exclusion_reason, :short_summary, :why_interesting, :risk_flags,
@@ -159,6 +164,8 @@ def upsert_offer(connection: sqlite3.Connection, offer: JobOffer) -> None:
         )
         ON CONFLICT(url) DO UPDATE SET
             reference = excluded.reference,
+            source = excluded.source,
+            source_specific = excluded.source_specific,
             title = excluded.title,
             contract_type = excluded.contract_type,
             duration = excluded.duration,
@@ -196,9 +203,15 @@ def shortlist(
     connection: sqlite3.Connection,
     min_score: float = 0.35,
     since: str | None = None,
+    source: str | None = None,
 ) -> list[JobOffer]:
     since_filter = "AND first_seen_at >= ?" if since else ""
-    parameters: tuple[object, ...] = (min_score, since) if since else (min_score,)
+    source_filter = "AND source = ?" if source else ""
+    parameters: list[object] = [min_score]
+    if since:
+        parameters.append(since)
+    if source:
+        parameters.append(source)
     rows = connection.execute(
         f"""
         SELECT * FROM offers
@@ -207,6 +220,7 @@ def shortlist(
           AND COALESCE(ai_category, '') != 'not_relevant'
           AND COALESCE(ai_relevance_score, 0) >= ?
           {since_filter}
+          {source_filter}
         ORDER BY
           CASE target_bucket
             WHEN 'primary_target' THEN 1
@@ -217,7 +231,7 @@ def shortlist(
           ai_relevance_score DESC,
           title ASC
         """,
-        parameters,
+        tuple(parameters),
     ).fetchall()
     return [_row_to_offer(row) for row in rows]
 
@@ -226,19 +240,27 @@ def excluded_offers(
     connection: sqlite3.Connection,
     limit: int = 20,
     since: str | None = None,
+    source: str | None = None,
 ) -> list[JobOffer]:
     since_filter = "AND first_seen_at >= ?" if since else ""
-    parameters: tuple[object, ...] = (since, limit) if since else (limit,)
+    source_filter = "AND source = ?" if source else ""
+    parameters: list[object] = []
+    if since:
+        parameters.append(since)
+    if source:
+        parameters.append(source)
+    parameters.append(limit)
     rows = connection.execute(
         f"""
         SELECT * FROM offers
         WHERE unavailable = 0
           AND is_target = 0
           {since_filter}
+          {source_filter}
         ORDER BY COALESCE(ai_relevance_score, 0) DESC, title ASC
         LIMIT ?
         """,
-        parameters,
+        tuple(parameters),
     ).fetchall()
     return [_row_to_offer(row) for row in rows]
 
@@ -431,6 +453,7 @@ def all_offers(connection: sqlite3.Connection) -> Iterable[JobOffer]:
 def _row_to_offer(row: sqlite3.Row) -> JobOffer:
     data = dict(row)
     data["url"] = row["url"]
+    data["source_specific"] = json.loads(row["source_specific"] or "{}")
     data["unavailable"] = bool(row["unavailable"])
     data["hard_filter_passed"] = bool(row["hard_filter_passed"])
     data["is_target"] = bool(row["is_target"])

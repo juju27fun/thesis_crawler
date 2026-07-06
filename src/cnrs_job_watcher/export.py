@@ -32,6 +32,7 @@ def export_markdown(offers: list[JobOffer], output: Path) -> None:
                 [
                     f"### {offer.title}",
                     "",
+                    f"- Source : {offer.source}",
                     f"- Type : {offer.contract_type or 'n/a'}",
                     f"- Durée : {offer.duration or 'n/a'}",
                     f"- Niveau : {offer.education_level or 'n/a'}",
@@ -57,6 +58,7 @@ def export_csv(offers: list[JobOffer], output: Path) -> None:
             handle,
             fieldnames=[
                 "reference",
+                "source",
                 "bucket",
                 "score",
                 "title",
@@ -81,6 +83,7 @@ def export_csv(offers: list[JobOffer], output: Path) -> None:
             writer.writerow(
                 {
                     "reference": offer.reference,
+                    "source": offer.source,
                     "bucket": offer.target_bucket,
                     "score": offer.ai_relevance_score,
                     "title": offer.title,

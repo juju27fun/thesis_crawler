@@ -39,6 +39,7 @@ uv run cnrs-jobs crawl --limit-pages 13
 uv run cnrs-jobs profile-audit --limit-pages 2
 uv run cnrs-jobs export --format markdown --output cnrs_ia_jobs.md
 uv run cnrs-jobs export --format csv --output cnrs_ia_jobs.csv
+uv run cnrs-jobs export --source cnrs
 uv run cnrs-jobs audit
 uv run cnrs-jobs digest
 uv run cnrs-jobs digest --include-excluded
@@ -62,6 +63,10 @@ cache la décision par hash HTML de l'offre. Sans clé API, il retombe sur les r
 `--include-excluded` ajoute les exclusions notables au Markdown/CSV pour auditer le bruit proche du
 seuil sans modifier la shortlist par défaut. Un exemple cron local est disponible dans
 `docs/local_automation.md`.
+
+Le modèle est prêt pour plusieurs portails : `JobOffer.source`, `source_specific` et l'interface
+`SourceAdapter` permettent d'ajouter une source sans modifier la classification centrale. CNRS reste
+la seule source active pour l'instant.
 
 ## Development contract
 

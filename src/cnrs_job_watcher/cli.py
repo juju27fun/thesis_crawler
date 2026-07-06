@@ -20,9 +20,10 @@ from cnrs_job_watcher.llm_classifier import (
     classify_offer_hybrid,
     provider_from_env,
 )
-from cnrs_job_watcher.parse import parse_list_page, parse_offer_detail
+from cnrs_job_watcher.parse import parse_list_page
 from cnrs_job_watcher.profiles import SearchProfile, dedupe_offers, filter_offers_by_profile
 from cnrs_job_watcher.schemas import JobOffer
+from cnrs_job_watcher.sources import CnrsSourceAdapter
 from cnrs_job_watcher.storage import (
     audit_counts,
     connect,
@@ -79,6 +80,7 @@ def crawl(
 
     try:
         with CnrsClient(cache_dir=raw_dir) as client:
+            source_adapter = CnrsSourceAdapter(client)
             first_html = client.fetch_list_page(1, use_cache=not no_cache)
             pages_fetched += 1
             first_offers, stats = parse_list_page(first_html)
@@ -100,7 +102,7 @@ def crawl(
                 try:
                     detail_html = client.fetch_offer_page(url, use_cache=not no_cache)
                     content_hash = hashlib.sha256(detail_html.encode("utf-8")).hexdigest()
-                    offer = parse_offer_detail(detail_html, url)
+                    offer = source_adapter.parse_detail(detail_html, url)
                     offer = _classify_offer(
                         offer.model_copy(update={"content_hash": content_hash}),
                         mode=classifier,
@@ -177,13 +179,14 @@ def export_command(
     min_score: float = typer.Option(0.35, min=0, max=1, help="Score minimum à exporter."),
     only_new: bool = typer.Option(False, help="Exporter seulement les offres du dernier run."),
     include_excluded: bool = typer.Option(False, help="Inclure les exclusions notables."),
+    source: str | None = typer.Option(None, help="Filtrer par source normalisée."),
 ) -> None:
     """Exporte la shortlist locale en Markdown et/ou CSV."""
     connection = connect(db)
     since = latest_run_started_at(connection) if only_new else None
-    offers = shortlist(connection, min_score=min_score, since=since)
+    offers = shortlist(connection, min_score=min_score, since=since, source=source)
     if include_excluded:
-        offers.extend(excluded_offers(connection, since=since))
+        offers.extend(excluded_offers(connection, since=since, source=source))
 
     if format not in {"markdown", "csv", "both"}:
         raise typer.BadParameter("format doit valoir markdown, csv ou both")
@@ -310,13 +313,14 @@ def digest(
         help="Limiter aux offres vues pour la première fois au dernier run.",
     ),
     include_excluded: bool = typer.Option(False, help="Inclure les exclusions notables."),
+    source: str | None = typer.Option(None, help="Filtrer par source normalisée."),
 ) -> None:
     """Produit un digest Markdown daté, pensé pour une veille quotidienne."""
     connection = connect(db)
     since = latest_run_started_at(connection) if only_new else None
-    offers = shortlist(connection, min_score=min_score, since=since)
+    offers = shortlist(connection, min_score=min_score, since=since, source=source)
     if include_excluded:
-        offers.extend(excluded_offers(connection, since=since))
+        offers.extend(excluded_offers(connection, since=since, source=source))
     output_path = output or Path("data/digests") / f"{datetime.now(UTC).date().isoformat()}.md"
     export_markdown(offers, output_path)
     scope = "nouvelles offres" if only_new else "shortlist complète"

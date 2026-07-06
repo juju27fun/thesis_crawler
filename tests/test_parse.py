@@ -9,6 +9,7 @@ from cnrs_job_watcher.llm_classifier import classification_json_schema, classify
 from cnrs_job_watcher.parse import parse_list_page, parse_offer_detail
 from cnrs_job_watcher.profiles import SearchProfile, dedupe_offers, filter_offers_by_profile
 from cnrs_job_watcher.schemas import JobOffer
+from cnrs_job_watcher.sources import CnrsSourceAdapter
 from cnrs_job_watcher.storage import (
     audit_counts,
     connect,
@@ -422,6 +423,64 @@ def test_exports_include_actionable_fields_and_exclusions(tmp_path: Path) -> Non
     assert "- Intérêt :" in markdown
     assert "why_interesting" in csv_text
     assert "contract,level" in csv_text
+    assert "source" in csv_text
+
+
+def test_source_specific_round_trip_and_source_filter(tmp_path: Path) -> None:
+    connection = connect(tmp_path / "sources.sqlite")
+    cnrs_offer = apply_classification(
+        JobOffer(
+            source="cnrs",
+            source_specific={"portal": "emploi.cnrs.fr"},
+            url="https://emploi.cnrs.fr/Offres/CDD/UMR5549-LESMAR-016/Default.aspx",
+            reference="UMR5549-LESMAR-016",
+            title="Ingénieur d'étude en Intelligence artificielle bio-inspirée",
+            contract_type="IT en contrat CDD",
+            education_level="BAC+5",
+            description="Deep learning, PyTorch et réseaux de neurones.",
+            raw_text="Machine learning et intelligence artificielle.",
+        )
+    )
+    inria_offer = apply_classification(
+        JobOffer(
+            source="inria",
+            source_specific={"team": "mock"},
+            url="https://jobs.inria.fr/public/classic/fr/offres/2026-001",
+            reference="INRIA-2026-001",
+            title="Ingénieur machine learning",
+            contract_type="IT en contrat CDD",
+            education_level="BAC+5",
+            description="Machine learning, PyTorch et deep learning.",
+            raw_text="Intelligence artificielle.",
+        )
+    )
+    upsert_offer(connection, cnrs_offer)
+    upsert_offer(connection, inria_offer)
+
+    cnrs_rows = shortlist(connection, min_score=0.25, source="cnrs")
+    all_rows = shortlist(connection, min_score=0.25)
+
+    assert [offer.source for offer in cnrs_rows] == ["cnrs"]
+    assert cnrs_rows[0].source_specific == {"portal": "emploi.cnrs.fr"}
+    assert {offer.source for offer in all_rows} == {"cnrs", "inria"}
+
+
+def test_cnrs_source_adapter_normalizes_source() -> None:
+    class FakeClient:
+        def fetch_list_page(self, page: int = 1, use_cache: bool = True) -> str:
+            return (FIXTURES / "list_page.html").read_text(encoding="utf-8")
+
+        def fetch_offer_page(self, url: str, use_cache: bool = True) -> str:
+            return (FIXTURES / "offer_page.html").read_text(encoding="utf-8")
+
+    adapter = CnrsSourceAdapter(FakeClient())
+
+    offers, stats = adapter.discover()
+    detail = adapter.parse_detail(adapter.fetch_detail(str(offers[0].url)), str(offers[0].url))
+
+    assert stats.total_pages == 13
+    assert offers[0].source == "cnrs"
+    assert detail.source == "cnrs"
 
 
 def test_llm_cache_round_trips_by_content_hash(tmp_path: Path) -> None:
@@ -484,6 +543,7 @@ def test_sqlite_migration_adds_target_columns_to_existing_database(tmp_path: Pat
 
     assert {
         "is_target",
+        "source_specific",
         "target_bucket",
         "accessibility",
         "exclusion_reason",

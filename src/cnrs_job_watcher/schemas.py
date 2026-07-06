@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, HttpUrl
 
@@ -23,7 +23,8 @@ class ListPageStats(BaseModel):
 
 
 class JobOffer(BaseModel):
-    source: Literal["cnrs"] = "cnrs"
+    source: str = "cnrs"
+    source_specific: dict[str, Any] = Field(default_factory=dict)
     url: HttpUrl
     reference: str | None = None
     title: str
