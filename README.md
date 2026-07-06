@@ -41,6 +41,7 @@ uv run cnrs-jobs export --format markdown --output cnrs_ia_jobs.md
 uv run cnrs-jobs export --format csv --output cnrs_ia_jobs.csv
 uv run cnrs-jobs export --source cnrs
 uv run cnrs-jobs audit
+uv run cnrs-jobs audit --json
 uv run cnrs-jobs digest
 uv run cnrs-jobs digest --include-excluded
 uv run cnrs-jobs eval
@@ -83,6 +84,7 @@ Pour valider le comportement réel CNRS sur un petit échantillon :
 uv run cnrs-jobs crawl --limit-pages 1 --limit-offers 5 \
   --db /tmp/cnrs_smoke.sqlite \
   --raw-dir /tmp/cnrs_smoke_raw \
+  --max-error-rate 0.2 \
   --no-cache
 uv run cnrs-jobs export --db /tmp/cnrs_smoke.sqlite --min-score 0.25
 uv run cnrs-jobs audit --db /tmp/cnrs_smoke.sqlite

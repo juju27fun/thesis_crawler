@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
@@ -59,6 +60,12 @@ def crawl(
     no_cache: bool = typer.Option(False, help="Ignorer les snapshots HTML existants."),
     timeout: float = typer.Option(30.0, min=1.0, help="Timeout HTTP en secondes."),
     max_retries: int = typer.Option(2, min=0, help="Nombre de retries HTTP transitoires."),
+    max_error_rate: float = typer.Option(
+        0.2,
+        min=0,
+        max=1,
+        help="Taux d'erreurs détail maximum avant exit code non nul.",
+    ),
     profile: SearchProfile = typer.Option(
         SearchProfile.ALL_PUBLIC,
         help="Profil de recherche logique du run.",
@@ -144,6 +151,9 @@ def crawl(
     )
     if not discovered or offers_fetched == 0:
         raise typer.Exit(code=1)
+    total_attempted = offers_fetched + errors_count
+    if total_attempted and errors_count / total_attempted > max_error_rate:
+        raise typer.Exit(code=1)
 
 
 @app.command("profile-audit")
@@ -215,10 +225,14 @@ def export_command(
 @app.command()
 def audit(
     db: Path = typer.Option(Path("data/cnrs_jobs.sqlite"), help="Base SQLite locale."),
+    json_output: bool = typer.Option(False, "--json", help="Sortie JSON machine-readable."),
 ) -> None:
     """Affiche les compteurs qualité du dernier état local."""
     connection = connect(db)
     counts = audit_counts(connection)
+    if json_output:
+        console.print(json.dumps(counts, ensure_ascii=False, default=str))
+        return
 
     console.print(f"[bold]Offres en base[/bold] {counts['total']}")
     console.print(f"[bold]Indisponibles[/bold] {counts['unavailable']}")
