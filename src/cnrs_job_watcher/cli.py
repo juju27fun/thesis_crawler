@@ -14,6 +14,7 @@ from cnrs_job_watcher.evaluation import load_evaluation_cases, run_evaluation
 from cnrs_job_watcher.export import export_csv, export_markdown
 from cnrs_job_watcher.fetch import CnrsClient
 from cnrs_job_watcher.parse import parse_list_page, parse_offer_detail
+from cnrs_job_watcher.profiles import SearchProfile, dedupe_offers, filter_offers_by_profile
 from cnrs_job_watcher.storage import (
     audit_counts,
     connect,
@@ -44,7 +45,10 @@ def crawl(
     db: Path = typer.Option(Path("data/cnrs_jobs.sqlite"), help="Base SQLite locale."),
     raw_dir: Path = typer.Option(Path("data/raw"), help="Dossier de snapshots HTML."),
     no_cache: bool = typer.Option(False, help="Ignorer les snapshots HTML existants."),
-    profile: str = typer.Option("all_public", help="Profil de recherche logique du run."),
+    profile: SearchProfile = typer.Option(
+        SearchProfile.ALL_PUBLIC,
+        help="Profil de recherche logique du run.",
+    ),
 ) -> None:
     """Récupère les offres publiques CNRS, parse les détails, classe et stocke."""
     discovered = []
@@ -53,7 +57,7 @@ def crawl(
     offers_fetched = 0
     errors_count = 0
     connection = connect(db)
-    run_id = start_run(connection, profile=profile)
+    run_id = start_run(connection, profile=profile.value)
 
     try:
         with CnrsClient(cache_dir=raw_dir) as client:
@@ -69,8 +73,8 @@ def crawl(
                 offers, _ = parse_list_page(html)
                 discovered.extend(offers)
 
-            unique = {str(offer.url): offer for offer in discovered}
-            offer_urls = list(unique)
+            filtered = filter_offers_by_profile(dedupe_offers(discovered), profile)
+            offer_urls = [str(offer.url) for offer in filtered]
             if limit_offers:
                 offer_urls = offer_urls[:limit_offers]
 
@@ -99,7 +103,7 @@ def crawl(
             connection,
             run_id,
             pages_fetched=pages_fetched,
-            offers_discovered=len({str(offer.url): offer for offer in discovered}),
+            offers_discovered=len(filter_offers_by_profile(dedupe_offers(discovered), profile)),
             offers_fetched=offers_fetched,
             errors_count=errors_count,
         )
@@ -111,6 +115,37 @@ def crawl(
     )
     if not discovered or offers_fetched == 0:
         raise typer.Exit(code=1)
+
+
+@app.command("profile-audit")
+def profile_audit(
+    limit_pages: int = typer.Option(1, min=1, help="Nombre de pages liste à auditer."),
+    raw_dir: Path = typer.Option(Path("data/raw"), help="Dossier de snapshots HTML."),
+    no_cache: bool = typer.Option(False, help="Ignorer les snapshots HTML existants."),
+) -> None:
+    """Compare les volumes découverts par profil sur les pages liste."""
+    discovered = []
+    pages_fetched = 0
+    with CnrsClient(cache_dir=raw_dir) as client:
+        first_html = client.fetch_list_page(1, use_cache=not no_cache)
+        pages_fetched += 1
+        first_offers, stats = parse_list_page(first_html)
+        pages_to_fetch = min(limit_pages, stats.total_pages or limit_pages)
+        discovered.extend(first_offers)
+
+        for page in range(2, pages_to_fetch + 1):
+            html = client.fetch_list_page(page, use_cache=not no_cache)
+            pages_fetched += 1
+            offers, _ = parse_list_page(html)
+            discovered.extend(offers)
+
+    deduped = dedupe_offers(discovered)
+    table = Table(title=f"Discovery profiles ({pages_fetched} pages)")
+    table.add_column("Profil")
+    table.add_column("Offres", justify="right")
+    for profile in SearchProfile:
+        table.add_row(profile.value, str(len(filter_offers_by_profile(deduped, profile))))
+    console.print(table)
 
 
 @app.command("export")

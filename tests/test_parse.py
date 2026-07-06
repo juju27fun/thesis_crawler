@@ -6,6 +6,7 @@ from cnrs_job_watcher.classify import apply_classification
 from cnrs_job_watcher.evaluation import load_evaluation_cases, run_evaluation
 from cnrs_job_watcher.export import export_markdown
 from cnrs_job_watcher.parse import parse_list_page, parse_offer_detail
+from cnrs_job_watcher.profiles import SearchProfile, dedupe_offers, filter_offers_by_profile
 from cnrs_job_watcher.schemas import JobOffer
 from cnrs_job_watcher.storage import (
     audit_counts,
@@ -52,6 +53,60 @@ def test_parse_offer_detail_extracts_reference_and_description() -> None:
     assert offer.duration == "36 mois"
     assert offer.location == "35042 RENNES"
     assert "modèles génératifs" in (offer.description or "")
+
+
+def test_search_profiles_filter_list_cards() -> None:
+    doctorant = JobOffer(
+        url="https://emploi.cnrs.fr/Offres/Doctorant/UMR6074-NICKER-008/Default.aspx",
+        title="Thèse (H/F) Invariance et transférabilité",
+        contract_type="CDD Doctorant",
+        education_level="BAC+5",
+        raw_text="CDD Doctorant BAC+5",
+    )
+    bac5_ai = JobOffer(
+        url="https://emploi.cnrs.fr/Offres/CDD/UMR5549-LESMAR-016/Default.aspx",
+        title="Ingénieur d'étude en Intelligence artificielle",
+        contract_type="IT en contrat CDD",
+        education_level="BAC+5",
+        raw_text="Deep learning PyTorch",
+    )
+    bac3_ai = JobOffer(
+        url="https://emploi.cnrs.fr/Offres/CDD/UMR7288-AUDBAR-083/Default.aspx",
+        title="Assistant ingénieur deep learning",
+        contract_type="IT en contrat CDD",
+        education_level="BAC+3/4",
+        raw_text="Computer vision",
+    )
+    non_ai = JobOffer(
+        url="https://emploi.cnrs.fr/Offres/CDD/UMR0000-ADMIN-001/Default.aspx",
+        title="Ingénieur instrumentation",
+        contract_type="IT en contrat CDD",
+        education_level="BAC+5",
+        raw_text="Instrumentation",
+    )
+    offers = [doctorant, bac5_ai, bac3_ai, non_ai]
+
+    assert filter_offers_by_profile(offers, SearchProfile.DOCTORANT) == [doctorant]
+    assert filter_offers_by_profile(offers, SearchProfile.CDD_BAC5) == [
+        doctorant,
+        bac5_ai,
+        non_ai,
+    ]
+    assert filter_offers_by_profile(offers, SearchProfile.AI_AUDIT) == [bac5_ai, bac3_ai]
+
+
+def test_dedupe_offers_prefers_last_seen_key() -> None:
+    first = JobOffer(
+        url="https://emploi.cnrs.fr/Offres/CDD/UMR0000-TEST-001/Default.aspx",
+        reference="UMR0000-TEST-001",
+        title="Version A",
+    )
+    second = first.model_copy(update={"title": "Version B"})
+
+    deduped = dedupe_offers([first, second])
+
+    assert len(deduped) == 1
+    assert deduped[0].title == "Version B"
 
 
 def test_classification_targets_generative_ai_thesis() -> None:

@@ -19,6 +19,7 @@ et exporte une shortlist exploitable en Markdown et CSV.
 ```bash
 uv sync
 uv run cnrs-jobs crawl --limit-pages 2 --limit-offers 25
+uv run cnrs-jobs crawl --profile doctorant --limit-pages 2
 uv run cnrs-jobs export
 ```
 
@@ -34,6 +35,7 @@ Sorties par défaut :
 
 ```bash
 uv run cnrs-jobs crawl --limit-pages 13
+uv run cnrs-jobs profile-audit --limit-pages 2
 uv run cnrs-jobs export --format markdown --output cnrs_ia_jobs.md
 uv run cnrs-jobs export --format csv --output cnrs_ia_jobs.csv
 uv run cnrs-jobs audit
@@ -44,6 +46,12 @@ uv run cnrs-jobs eval
 Le crawler respecte les zones publiques du site et limite volontairement le rythme des requêtes.
 L'IA générative n'est pas utilisée comme crawler : elle doit rester une étape de classification
 sémantique optionnelle après extraction.
+
+Les profils `doctorant`, `cdd_bac5` et `ai_audit` filtrent les cartes de résultats avant
+téléchargement des pages détail. Le formulaire CNRS expose bien des valeurs serveur comme
+`DOCTOR`, `ITCDD` et `CHRCDD`, mais le POST filtré dépend du comportement ASP.NET/JavaScript ;
+le crawler conserve donc le parcours public général comme source robuste, puis applique ces profils
+localement.
 
 ## Development contract
 
