@@ -95,12 +95,24 @@ def parse_offer_detail(html: str, url: str) -> JobOffer:
     reference = _extract_table_value(soup, "Référence de l’offre")
     description_node = soup.select_one("#CphMain_FullOfferDisplay_Description")
     description = clean_text(description_node.get_text(" ")) if description_node else None
+    sections = _extract_sections(description_node) if description_node else {}
     skills = (
-        _extract_section_after_heading(description_node, ["Compétences", "Votre Profil", "Profil"])
-        if description_node
-        else None
+        _first_section(sections, ["compétences", "votre profil", "profil"])
     )
     published = _text_or_none(soup.select_one("article .post-meta .maj"))
+    source_specific = {
+        "quick_facts": facts,
+        "sections": sections,
+        "application_deadline": _pick_fact(
+            facts,
+            ["Date limite de candidature", "Date de clôture", "Date limite"],
+        ),
+        "start_date": _pick_fact(
+            facts,
+            ["Date d'embauche prévue", "Date de début", "Début du contrat"],
+        ),
+        "salary": _pick_fact(facts, ["Rémunération", "Salaire"]),
+    }
 
     return JobOffer(
         url=url,
@@ -116,6 +128,7 @@ def parse_offer_detail(html: str, url: str) -> JobOffer:
         skills=skills,
         raw_text=page_text,
         unavailable=unavailable,
+        source_specific={key: value for key, value in source_specific.items() if value},
     )
 
 
@@ -175,6 +188,46 @@ def _extract_section_after_heading(root: Tag, headings: list[str]) -> str | None
             if text:
                 chunks.append(text)
         return clean_text(" ".join(chunks)) or None
+    return None
+
+
+def _extract_sections(root: Tag) -> dict[str, str]:
+    sections: dict[str, str] = {}
+    for heading in root.select("h2, h3"):
+        heading_text = clean_text(heading.get_text(" "))
+        if not heading_text:
+            continue
+        chunks: list[str] = []
+        for sibling in heading.find_next_siblings():
+            if isinstance(sibling, Tag) and sibling.name in {"h2", "h3"}:
+                break
+            text = (
+                clean_text(sibling.get_text(" "))
+                if isinstance(sibling, Tag)
+                else clean_text(str(sibling))
+            )
+            if text:
+                chunks.append(text)
+        section_text = clean_text(" ".join(chunks))
+        if section_text:
+            sections[heading_text] = section_text
+    return sections
+
+
+def _first_section(sections: dict[str, str], headings: list[str]) -> str | None:
+    for section_heading, section_text in sections.items():
+        normalized = section_heading.lower()
+        if any(candidate.lower() in normalized for candidate in headings):
+            return section_text
+    return None
+
+
+def _pick_fact(facts: dict[str, str], labels: list[str]) -> str | None:
+    normalized = {key.lower(): value for key, value in facts.items()}
+    for label in labels:
+        value = normalized.get(label.lower())
+        if value:
+            return value
     return None
 
 

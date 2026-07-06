@@ -2,9 +2,12 @@ import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import httpx
+
 from cnrs_job_watcher.classify import apply_classification
 from cnrs_job_watcher.evaluation import load_evaluation_cases, run_evaluation
 from cnrs_job_watcher.export import export_csv, export_markdown
+from cnrs_job_watcher.fetch import CnrsClient
 from cnrs_job_watcher.llm_classifier import classification_json_schema, classify_offer_hybrid
 from cnrs_job_watcher.parse import parse_list_page, parse_offer_detail
 from cnrs_job_watcher.profiles import SearchProfile, dedupe_offers, filter_offers_by_profile
@@ -57,6 +60,8 @@ def test_parse_offer_detail_extracts_reference_and_description() -> None:
     assert offer.duration == "36 mois"
     assert offer.location == "35042 RENNES"
     assert "modèles génératifs" in (offer.description or "")
+    assert offer.source_specific["quick_facts"]["Type de Contrat"] == "CDD Doctorant"
+    assert "Sujet De Thèse" in offer.source_specific["sections"]
 
 
 def test_search_profiles_filter_list_cards() -> None:
@@ -481,6 +486,26 @@ def test_cnrs_source_adapter_normalizes_source() -> None:
     assert stats.total_pages == 13
     assert offers[0].source == "cnrs"
     assert detail.source == "cnrs"
+
+
+def test_cnrs_client_retries_transient_http_errors(tmp_path: Path) -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(503, request=request)
+        return httpx.Response(200, text="<html>ok</html>", request=request)
+
+    client = CnrsClient(cache_dir=tmp_path, delay_seconds=0, max_retries=1, backoff_seconds=0)
+    client.client = httpx.Client(transport=httpx.MockTransport(handler))
+
+    html = client.fetch_list_page(use_cache=False)
+
+    client.close()
+    assert html == "<html>ok</html>"
+    assert calls == 2
 
 
 def test_llm_cache_round_trips_by_content_hash(tmp_path: Path) -> None:

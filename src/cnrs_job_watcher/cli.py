@@ -57,6 +57,8 @@ def crawl(
     db: Path = typer.Option(Path("data/cnrs_jobs.sqlite"), help="Base SQLite locale."),
     raw_dir: Path = typer.Option(Path("data/raw"), help="Dossier de snapshots HTML."),
     no_cache: bool = typer.Option(False, help="Ignorer les snapshots HTML existants."),
+    timeout: float = typer.Option(30.0, min=1.0, help="Timeout HTTP en secondes."),
+    max_retries: int = typer.Option(2, min=0, help="Nombre de retries HTTP transitoires."),
     profile: SearchProfile = typer.Option(
         SearchProfile.ALL_PUBLIC,
         help="Profil de recherche logique du run.",
@@ -79,7 +81,11 @@ def crawl(
         console.print("[yellow]OPENAI_API_KEY absent; fallback règles seules.[/yellow]")
 
     try:
-        with CnrsClient(cache_dir=raw_dir) as client:
+        with CnrsClient(
+            cache_dir=raw_dir,
+            timeout_seconds=timeout,
+            max_retries=max_retries,
+        ) as client:
             source_adapter = CnrsSourceAdapter(client)
             first_html = client.fetch_list_page(1, use_cache=not no_cache)
             pages_fetched += 1
@@ -145,11 +151,13 @@ def profile_audit(
     limit_pages: int = typer.Option(1, min=1, help="Nombre de pages liste à auditer."),
     raw_dir: Path = typer.Option(Path("data/raw"), help="Dossier de snapshots HTML."),
     no_cache: bool = typer.Option(False, help="Ignorer les snapshots HTML existants."),
+    timeout: float = typer.Option(30.0, min=1.0, help="Timeout HTTP en secondes."),
+    max_retries: int = typer.Option(2, min=0, help="Nombre de retries HTTP transitoires."),
 ) -> None:
     """Compare les volumes découverts par profil sur les pages liste."""
     discovered = []
     pages_fetched = 0
-    with CnrsClient(cache_dir=raw_dir) as client:
+    with CnrsClient(cache_dir=raw_dir, timeout_seconds=timeout, max_retries=max_retries) as client:
         first_html = client.fetch_list_page(1, use_cache=not no_cache)
         pages_fetched += 1
         first_offers, stats = parse_list_page(first_html)

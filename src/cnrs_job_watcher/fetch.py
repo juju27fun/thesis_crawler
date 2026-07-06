@@ -17,9 +17,13 @@ class CnrsClient:
         cache_dir: Path = Path("data/raw"),
         delay_seconds: float = 0.5,
         timeout_seconds: float = 30.0,
+        max_retries: int = 2,
+        backoff_seconds: float = 1.0,
     ) -> None:
         self.cache_dir = cache_dir
         self.delay_seconds = delay_seconds
+        self.max_retries = max_retries
+        self.backoff_seconds = backoff_seconds
         self.client = httpx.Client(
             follow_redirects=True,
             timeout=timeout_seconds,
@@ -41,10 +45,9 @@ class CnrsClient:
             return cache_path.read_text(encoding="utf-8")
 
         if page <= 1:
-            response = self.client.get(SEARCH_URL, params={"lang": "FR"})
+            response = self._request("GET", SEARCH_URL, params={"lang": "FR"})
         else:
-            response = self.client.post(SEARCH_URL, data={"Page": str(page)})
-        response.raise_for_status()
+            response = self._request("POST", SEARCH_URL, data={"Page": str(page)})
         html = response.text
         _write_snapshot(cache_path, html)
         time.sleep(self.delay_seconds)
@@ -55,8 +58,7 @@ class CnrsClient:
         if use_cache and cache_path.exists():
             return cache_path.read_text(encoding="utf-8")
 
-        response = self.client.get(url, params={"lang": "FR"} if "?" not in url else None)
-        response.raise_for_status()
+        response = self._request("GET", url, params={"lang": "FR"} if "?" not in url else None)
         html = response.text
         _write_snapshot(cache_path, html)
         time.sleep(self.delay_seconds)
@@ -64,6 +66,28 @@ class CnrsClient:
 
     def offer_cache_path(self, url: str) -> Path:
         return self.cache_dir / "offers" / f"{slugify(url.replace(BASE_URL, ''))}.html"
+
+    def _request(self, method: str, url: str, **kwargs: object) -> httpx.Response:
+        last_error: Exception | None = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                response = self.client.request(method, url, **kwargs)
+                response.raise_for_status()
+                return response
+            except (httpx.HTTPStatusError, httpx.TransportError) as exc:
+                last_error = exc
+                if attempt >= self.max_retries or not _is_retryable(exc):
+                    raise
+                time.sleep(self.backoff_seconds * (attempt + 1))
+        raise RuntimeError("unreachable retry state") from last_error
+
+
+def _is_retryable(exc: Exception) -> bool:
+    if isinstance(exc, httpx.TransportError):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code in {429, 500, 502, 503, 504}
+    return False
 
 
 def _write_snapshot(path: Path, html: str) -> None:
