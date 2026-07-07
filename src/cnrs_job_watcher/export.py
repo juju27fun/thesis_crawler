@@ -30,6 +30,7 @@ def export_markdown(offers: list[JobOffer], output: Path) -> None:
             )
             flags = ", ".join(offer.risk_flags) if offer.risk_flags else "aucun"
             origin = _display_origin(offer)
+            source_details = _source_detail_lines(offer)
             lines.extend(
                 [
                     f"### {offer.title}",
@@ -41,6 +42,7 @@ def export_markdown(offers: list[JobOffer], output: Path) -> None:
                     f"- Lieu : {offer.location or 'n/a'}",
                     f"- Labo : {offer.lab or 'n/a'}",
                     f"- Publication : {offer.published_at_text or 'n/a'}",
+                    *source_details,
                     f"- Score : {score}",
                     f"- Résumé : {offer.short_summary or 'n/a'}",
                     f"- Intérêt : {offer.why_interesting or 'n/a'}",
@@ -73,6 +75,10 @@ def export_csv(offers: list[JobOffer], output: Path) -> None:
                 "location",
                 "lab",
                 "published_at_text",
+                "company",
+                "source_laboratory",
+                "sector",
+                "application_deadline",
                 "category",
                 "summary",
                 "why_interesting",
@@ -99,6 +105,10 @@ def export_csv(offers: list[JobOffer], output: Path) -> None:
                     "location": offer.location,
                     "lab": offer.lab,
                     "published_at_text": offer.published_at_text,
+                    "company": offer.source_specific.get("company_name"),
+                    "source_laboratory": offer.source_specific.get("laboratory_name"),
+                    "sector": offer.source_specific.get("sector"),
+                    "application_deadline": offer.source_specific.get("application_deadline"),
                     "category": offer.ai_category,
                     "summary": offer.short_summary,
                     "why_interesting": offer.why_interesting,
@@ -122,3 +132,15 @@ def _display_origin(offer: JobOffer) -> str:
     if offer.source in {"anrt"}:
         return source_definition(offer.source).display_name
     return offer.source
+
+
+def _source_detail_lines(offer: JobOffer) -> list[str]:
+    if offer.source != "anrt":
+        return []
+    details = [
+        ("Entreprise", offer.source_specific.get("company_name")),
+        ("Laboratoire source", offer.source_specific.get("laboratory_name")),
+        ("Secteur", offer.source_specific.get("sector")),
+        ("Date limite", offer.source_specific.get("application_deadline")),
+    ]
+    return [f"- {label} : {value}" for label, value in details if value]

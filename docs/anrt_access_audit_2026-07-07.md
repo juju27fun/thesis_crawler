@@ -21,6 +21,7 @@ Conclusion actuelle : `playwright_required_or_session_cookie_required`.
   thèse sur la plateforme.
 - Les listes d'offres sont sous `/espace-membre/`.
 - Un accès non connecté ne donne pas une liste vide exploitable ; il signale une déconnexion.
+- Un test réel non connecté via CLI redirige vers `/logout` et peut produire `401 Unauthorized`.
 - Il n'y a pas de `robots.txt` exploitable à l'URL standard : la route renvoie une page 404 HTML.
 
 ## Décision d'implémentation
@@ -35,6 +36,7 @@ La première version implémentée accepte donc :
 - un fichier de session cookies local via `--anrt-session-file` ;
 - des snapshots runtime hors Git ;
 - des parsers testés sur fixtures anonymisées.
+- une commande `cnrs-jobs anrt-session-check` pour vérifier une session avant crawl.
 
 ## Prochain audit nécessaire
 
@@ -53,3 +55,4 @@ La première version implémentée accepte donc :
 - Les dossiers `data/auth/`, `data/anrt_session/` et `playwright/.auth/` restent ignorés.
 - CNRS doit continuer à fonctionner sans dépendre d'ANRT.
 - Un run ANRT sans session doit sortir avec un message clair `ANRT auth requise`.
+- Un run `--source all` doit continuer CNRS si ANRT est déconnecté.

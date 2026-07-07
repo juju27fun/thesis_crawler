@@ -25,6 +25,31 @@ uv run cnrs-jobs audit --db data/cnrs_jobs.sqlite
 
 Sans `OPENAI_API_KEY`, `--classifier hybrid` retombe sur les règles locales.
 
+## Commande multi-source locale
+
+ANRT/CIFRE nécessite une session locale. Vérifier la session avant de l'ajouter à une routine :
+
+```bash
+uv run cnrs-jobs anrt-session-check \
+  --anrt-session-file data/auth/anrt-cookies.json \
+  --raw-dir data/raw
+```
+
+Une fois la session valide, le mode multi-source peut être lancé ainsi :
+
+```bash
+uv run cnrs-jobs crawl \
+  --source all \
+  --classifier hybrid \
+  --anrt-session-file data/auth/anrt-cookies.json \
+  --db data/cnrs_jobs.sqlite \
+  --raw-dir data/raw
+```
+
+Si ANRT est déconnecté, CNRS continue en mode `--source all` et le run indique que la session ANRT
+est absente ou expirée. Pour diagnostiquer seulement ANRT, utiliser `--source anrt`, qui échoue avec
+un code `2` quand l'authentification manque.
+
 ## Exemple cron
 
 Adapter le chemin du dépôt si nécessaire :

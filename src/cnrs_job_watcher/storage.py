@@ -63,10 +63,13 @@ def initialize(connection: sqlite3.Connection) -> None:
             started_at TEXT NOT NULL,
             finished_at TEXT,
             profile TEXT NOT NULL DEFAULT 'all_public',
+            source TEXT NOT NULL DEFAULT 'cnrs',
+            source_kind TEXT,
             pages_fetched INTEGER NOT NULL DEFAULT 0,
             offers_discovered INTEGER NOT NULL DEFAULT 0,
             offers_fetched INTEGER NOT NULL DEFAULT 0,
-            errors_count INTEGER NOT NULL DEFAULT 0
+            errors_count INTEGER NOT NULL DEFAULT 0,
+            status_message TEXT
         )
         """
     )
@@ -96,6 +99,7 @@ def initialize(connection: sqlite3.Connection) -> None:
         """
     )
     _add_missing_columns(connection)
+    _add_missing_run_columns(connection)
     connection.execute("CREATE INDEX IF NOT EXISTS idx_offers_score ON offers(ai_relevance_score)")
     connection.execute("CREATE INDEX IF NOT EXISTS idx_offers_reference ON offers(reference)")
     connection.execute(
@@ -130,6 +134,21 @@ def _add_missing_columns(connection: sqlite3.Connection) -> None:
     for name, definition in columns.items():
         if name not in existing:
             connection.execute(f"ALTER TABLE offers ADD COLUMN {name} {definition}")
+
+
+def _add_missing_run_columns(connection: sqlite3.Connection) -> None:
+    existing = {
+        row["name"]
+        for row in connection.execute("PRAGMA table_info(runs)").fetchall()
+    }
+    columns = {
+        "source": "TEXT NOT NULL DEFAULT 'cnrs'",
+        "source_kind": "TEXT",
+        "status_message": "TEXT",
+    }
+    for name, definition in columns.items():
+        if name not in existing:
+            connection.execute(f"ALTER TABLE runs ADD COLUMN {name} {definition}")
 
 
 def upsert_offer(connection: sqlite3.Connection, offer: JobOffer) -> None:
@@ -281,6 +300,17 @@ def audit_counts(connection: sqlite3.Connection) -> dict[str, object]:
             """
         ).fetchall()
     }
+    by_source = {
+        row["source"]: row["count"]
+        for row in connection.execute(
+            """
+            SELECT source, COUNT(*) AS count
+            FROM offers
+            GROUP BY source
+            ORDER BY count DESC
+            """
+        ).fetchall()
+    }
     by_exclusion_reason = {
         row["exclusion_reason"]: row["count"]
         for row in connection.execute(
@@ -297,19 +327,25 @@ def audit_counts(connection: sqlite3.Connection) -> dict[str, object]:
         "total": total,
         "unavailable": unavailable,
         "by_bucket": by_bucket,
+        "by_source": by_source,
         "by_exclusion_reason": by_exclusion_reason,
         "latest_run": latest_run(connection),
         "top_scores": top_scores(connection),
     }
 
 
-def start_run(connection: sqlite3.Connection, profile: str = "all_public") -> int:
+def start_run(
+    connection: sqlite3.Connection,
+    profile: str = "all_public",
+    source: str = "cnrs",
+    source_kind: str | None = None,
+) -> int:
     cursor = connection.execute(
         """
-        INSERT INTO runs (started_at, profile)
-        VALUES (?, ?)
+        INSERT INTO runs (started_at, profile, source, source_kind)
+        VALUES (?, ?, ?, ?)
         """,
-        (datetime.now(UTC).isoformat(), profile),
+        (datetime.now(UTC).isoformat(), profile, source, source_kind),
     )
     connection.commit()
     return int(cursor.lastrowid)
@@ -323,6 +359,7 @@ def finish_run(
     offers_discovered: int,
     offers_fetched: int,
     errors_count: int,
+    status_message: str | None = None,
 ) -> None:
     connection.execute(
         """
@@ -331,7 +368,8 @@ def finish_run(
             pages_fetched = ?,
             offers_discovered = ?,
             offers_fetched = ?,
-            errors_count = ?
+            errors_count = ?,
+            status_message = ?
         WHERE id = ?
         """,
         (
@@ -340,6 +378,7 @@ def finish_run(
             offers_discovered,
             offers_fetched,
             errors_count,
+            status_message,
             run_id,
         ),
     )
@@ -392,7 +431,7 @@ def record_offer_snapshot(
 def top_scores(connection: sqlite3.Connection, limit: int = 5) -> list[dict[str, object]]:
     rows = connection.execute(
         """
-        SELECT reference, title, target_bucket, ai_relevance_score
+        SELECT source, reference, title, target_bucket, ai_relevance_score
         FROM offers
         WHERE ai_relevance_score IS NOT NULL
         ORDER BY ai_relevance_score DESC, title ASC

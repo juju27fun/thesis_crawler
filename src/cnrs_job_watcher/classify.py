@@ -39,6 +39,16 @@ STRONG_TERMS = {
     "mlops": "MLOps",
     "reinforcement learning": "reinforcement learning",
     "apprentissage par renforcement": "apprentissage par renforcement",
+    "modèle prédictif": "modèle prédictif",
+    "modele predictif": "modèle prédictif",
+    "modèles prédictifs": "modèles prédictifs",
+    "modeles predictifs": "modèles prédictifs",
+    "optimisation bayésienne": "optimisation bayésienne",
+    "optimisation bayesienne": "optimisation bayésienne",
+    "détection d'anomalies": "détection d'anomalies",
+    "detection d'anomalies": "détection d'anomalies",
+    "détection anomalie": "détection d'anomalies",
+    "detection anomalie": "détection d'anomalies",
     "modèles de diffusion": "modèles de diffusion",
     "modeles de diffusion": "modèles de diffusion",
     "diffusion model": "diffusion model",
@@ -53,6 +63,11 @@ ADJACENT_TERMS = {
     "neurosciences computationnelles": "neurosciences computationnelles",
     "calcul scientifique": "calcul scientifique",
     "big data": "big data",
+    "jumeau numérique": "jumeau numérique",
+    "jumeau numerique": "jumeau numérique",
+    "chemoinformatique": "chemoinformatique",
+    "séries temporelles": "séries temporelles",
+    "series temporelles": "séries temporelles",
 }
 
 NEGATIVE_TERMS = {
@@ -308,6 +323,10 @@ def _decide_bucket(
         return "exclude", False, f"negative_signal:{negative_hits[0]}", risk_flags
     if domain == "not_relevant":
         return "exclude", False, "no_ai_ml_signal", risk_flags
+    if offer.source == "anrt" and target_type == "thesis_or_bac5_cdd":
+        if domain == "data_science_adjacent":
+            return "adjacent_review", True, eligibility_exclusion, risk_flags
+        return "primary_target", True, None, risk_flags
     if target_type == "thesis_or_bac5_cdd":
         return "primary_target", True, None, risk_flags
     if target_type == "bac5_cdd":

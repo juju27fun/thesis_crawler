@@ -388,6 +388,7 @@ def test_sqlite_migration_and_shortlist_use_is_target(tmp_path: Path) -> None:
     counts = audit_counts(connection)
     assert counts["total"] == 2
     assert counts["by_bucket"] == {"exclude": 1, "secondary_target": 1}
+    assert counts["by_source"] == {"cnrs": 2}
     assert counts["by_exclusion_reason"] == {"no_ai_ml_signal": 1}
 
 
@@ -433,7 +434,7 @@ def test_storage_preserves_first_seen_and_filters_new_offers(tmp_path: Path) -> 
 
 def test_run_snapshot_and_digest_export(tmp_path: Path) -> None:
     connection = connect(tmp_path / "snapshots.sqlite")
-    run_id = start_run(connection, profile="all_public")
+    run_id = start_run(connection, profile="all_public", source="cnrs")
     offer = apply_classification(
         JobOffer(
             url="https://emploi.cnrs.fr/Offres/CDD/UMR5549-LESMAR-016/Default.aspx",
@@ -470,9 +471,31 @@ def test_run_snapshot_and_digest_export(tmp_path: Path) -> None:
 
     assert snapshot_count == 1
     assert counts["latest_run"]["offers_fetched"] == 1
+    assert counts["latest_run"]["source"] == "cnrs"
+    assert counts["latest_run"]["status_message"] is None
     assert "Ingénieur d'étude en Intelligence artificielle" in digest_path.read_text(
         encoding="utf-8"
     )
+
+
+def test_run_status_records_authenticated_source_failures(tmp_path: Path) -> None:
+    connection = connect(tmp_path / "runs.sqlite")
+    run_id = start_run(connection, profile="anrt_cifre", source="anrt", source_kind="entreprise")
+
+    finish_run(
+        connection,
+        run_id,
+        pages_fetched=0,
+        offers_discovered=0,
+        offers_fetched=0,
+        errors_count=0,
+        status_message="auth_required",
+    )
+
+    latest = audit_counts(connection)["latest_run"]
+    assert latest["source"] == "anrt"
+    assert latest["source_kind"] == "entreprise"
+    assert latest["status_message"] == "auth_required"
 
 
 def test_exports_include_actionable_fields_and_exclusions(tmp_path: Path) -> None:
@@ -512,6 +535,40 @@ def test_exports_include_actionable_fields_and_exclusions(tmp_path: Path) -> Non
     assert "why_interesting" in csv_text
     assert "contract,level" in csv_text
     assert "source" in csv_text
+
+
+def test_exports_include_anrt_source_specific_fields(tmp_path: Path) -> None:
+    target = apply_classification(
+        JobOffer(
+            source="anrt",
+            source_specific={
+                "anrt_kind": "entreprise",
+                "company_name": "Acme Research",
+                "laboratory_name": "Laboratoire IA Appliquée",
+                "sector": "Industrie",
+                "application_deadline": "2026-09-30",
+            },
+            url="https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/123",
+            reference="CIFRE-2026-123",
+            title="Thèse CIFRE deep learning",
+            contract_type="CIFRE",
+            education_level="BAC+5 / Master",
+            description="Deep learning, PyTorch et réseaux de neurones.",
+            raw_text="Machine learning et intelligence artificielle.",
+        )
+    )
+    markdown_path = tmp_path / "anrt.md"
+    csv_path = tmp_path / "anrt.csv"
+
+    export_markdown([target], markdown_path)
+    export_csv([target], csv_path)
+
+    markdown = markdown_path.read_text(encoding="utf-8")
+    csv_text = csv_path.read_text(encoding="utf-8")
+    assert "- Source : ANRT entreprise" in markdown
+    assert "- Entreprise : Acme Research" in markdown
+    assert "- Laboratoire source : Laboratoire IA Appliquée" in markdown
+    assert "company,source_laboratory,sector,application_deadline" in csv_text
 
 
 def test_source_specific_round_trip_and_source_filter(tmp_path: Path) -> None:

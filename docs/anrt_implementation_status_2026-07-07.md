@@ -1,0 +1,119 @@
+# Statut d'implémentation ANRT/CIFRE
+
+Date : 2026-07-07
+
+## Statut court
+
+ANRT/CIFRE est maintenant intégré comme source authentifiée préparatoire dans le pipeline
+multi-source. Le projet peut :
+
+- lancer CNRS seul ;
+- lancer ANRT seul avec garde d'authentification ;
+- lancer `--source all`, qui continue CNRS même si ANRT est déconnecté ;
+- parser et classifier des fixtures ANRT entreprise/laboratoire ;
+- évaluer un dataset ANRT synthétique ;
+- exporter une provenance lisible et des champs CIFRE spécifiques.
+
+Le crawl ANRT réel complet n'est pas encore prouvé, car il manque une session ANRT connectée et des
+fixtures anonymisées issues du HTML réel.
+
+## Implémenté
+
+- `cnrs-jobs crawl --source cnrs`
+- `cnrs-jobs crawl --source anrt --anrt-kind entreprise|laboratoire|both`
+- `cnrs-jobs crawl --source all`
+- `cnrs-jobs anrt-session-check`
+- `cnrs-jobs eval --source anrt`
+- Module `cnrs_job_watcher.anrt.fetch`
+- Module `cnrs_job_watcher.anrt.parse`
+- `AnrtSourceAdapter`
+- `SourceDefinition` / `SOURCE_REGISTRY`
+- Migration SQLite non destructive des runs :
+  - `source`
+  - `source_kind`
+  - `status_message`
+- Audit par source via `audit_counts`
+- Exports Markdown/CSV avec :
+  - origine lisible ;
+  - entreprise ;
+  - laboratoire source ;
+  - secteur ;
+  - date limite.
+- Dataset `tests/fixtures/evaluation/anrt_offers.json`
+
+## Garde-fous validés
+
+- Un run ANRT sans session sort en code `2` avec `ANRT auth requise`.
+- Un run `--source all` continue CNRS si ANRT est déconnecté.
+- Les cookies/session restent hors Git :
+  - `data/auth/`
+  - `data/anrt_session/`
+  - `playwright/.auth/`
+- Une page ANRT logout/déconnexion n'est pas parsée comme une offre.
+- Les offres CIFRE sans signal IA/ML restent exclues.
+- Les offres CIFRE data adjacentes vont en `adjacent_review`, pas automatiquement en cible primaire.
+
+## Validations lancées
+
+```bash
+uv run ruff check .
+uv run pytest -q
+uv run cnrs-jobs eval
+uv run cnrs-jobs eval --source anrt
+uv run cnrs-jobs eval --dataset tests/fixtures/evaluation/observed_offers.json
+uv run cnrs-jobs anrt-session-check --raw-dir /tmp/anrt_session_check_raw --no-cache
+uv run cnrs-jobs crawl --source all --limit-offers 2 --db /tmp/source_all.sqlite --raw-dir /tmp/source_all_raw --no-cache
+uv run cnrs-jobs audit --db /tmp/source_all.sqlite --json
+```
+
+Résultats observés :
+
+- `ruff` vert ;
+- `pytest` vert, 34 tests ;
+- évaluation CNRS annotée : métriques 1.000 ;
+- évaluation ANRT synthétique : métriques 1.000 ;
+- évaluation CNRS observée : métriques 1.000 ;
+- `anrt-session-check` sans session : code `2`, attendu ;
+- `--source all` sans session ANRT : CNRS traité, ANRT signalé `auth_required`.
+
+## Reste à faire pour compléter le plan
+
+- Se connecter localement à ANRT et lancer `anrt-session-check` avec un vrai fichier cookies.
+- Auditer les pages connectées :
+  - HTML serveur ou endpoint JSON ;
+  - pagination ;
+  - filtres ;
+  - liens détail ;
+  - champs entreprise/laboratoire réels.
+- Remplacer les fixtures synthétiques par fixtures anonymisées issues du HTML réel.
+- Adapter les sélecteurs ANRT aux pages réelles si nécessaire.
+- Prouver un crawl ANRT réel :
+  - `--anrt-kind entreprise` ;
+  - `--anrt-kind laboratoire` ;
+  - `--anrt-kind both`.
+- Valider un digest réel ANRT + CNRS.
+- Décider ensuite si Playwright devient nécessaire pour la session ou si `httpx` + cookies suffit.
+
+## Prochaine action recommandée
+
+Obtenir une session ANRT connectée locale et exécuter :
+
+```bash
+uv run cnrs-jobs anrt-session-check \
+  --anrt-session-file data/auth/anrt-cookies.json \
+  --raw-dir data/raw \
+  --no-cache
+```
+
+Si cette commande découvre des URLs, lancer ensuite un crawl très limité :
+
+```bash
+uv run cnrs-jobs crawl \
+  --source anrt \
+  --anrt-kind both \
+  --anrt-session-file data/auth/anrt-cookies.json \
+  --limit-offers 5 \
+  --db /tmp/anrt_real_smoke.sqlite \
+  --raw-dir /tmp/anrt_real_smoke_raw \
+  --no-cache
+```

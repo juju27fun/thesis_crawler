@@ -53,6 +53,7 @@ class DiscoveryMode(StrEnum):
 class SourceName(StrEnum):
     CNRS = "cnrs"
     ANRT = "anrt"
+    ALL = "all"
 
 
 @app.command()
@@ -101,95 +102,139 @@ def crawl(
     ),
 ) -> None:
     """Récupère les offres d'une source, parse les détails, classe et stocke."""
-    discovered = []
-    pages_to_fetch = 0
-    pages_fetched = 0
-    offers_fetched = 0
-    discovered_count = 0
-    errors_count = 0
     connection = connect(db)
-    run_id = start_run(connection, profile=profile.value)
     llm_provider = provider_from_env() if classifier != ClassifierMode.RULES else None
     if classifier != ClassifierMode.RULES and llm_provider is None:
         console.print("[yellow]OPENAI_API_KEY absent; fallback règles seules.[/yellow]")
 
-    try:
-        if source == SourceName.CNRS:
-            with CnrsClient(
-                cache_dir=raw_dir,
-                timeout_seconds=timeout,
+    run_sources = [SourceName.CNRS, SourceName.ANRT] if source == SourceName.ALL else [source]
+    totals = {"discovered": 0, "fetched": 0, "errors": 0}
+    auth_failures: list[str] = []
+
+    for run_source in run_sources:
+        if run_source == SourceName.CNRS:
+            result = _crawl_cnrs_source(
+                connection=connection,
+                raw_dir=raw_dir,
+                no_cache=no_cache,
+                timeout=timeout,
                 max_retries=max_retries,
-            ) as client:
-                source_adapter = CnrsSourceAdapter(client)
-                if discovery == DiscoveryMode.SITEMAP:
-                    offer_urls = _filter_sitemap_urls_by_profile(
-                        source_adapter.discover_urls(use_cache=not no_cache),
-                        profile,
-                    )
-                    pages_fetched = 1
-                    pages_to_fetch = 1
-                    discovered_count = len(offer_urls)
-                else:
-                    first_html = client.fetch_list_page(1, use_cache=not no_cache)
-                    pages_fetched += 1
-                    first_offers, stats = parse_list_page(first_html)
-                    pages_to_fetch = min(limit_pages, stats.total_pages or limit_pages)
-                    discovered.extend(first_offers)
-
-                    for page in range(2, pages_to_fetch + 1):
-                        html = client.fetch_list_page(page, use_cache=not no_cache)
-                        pages_fetched += 1
-                        offers, _ = parse_list_page(html)
-                        discovered.extend(offers)
-
-                    filtered = filter_offers_by_profile(dedupe_offers(discovered), profile)
-                    offer_urls = [str(offer.url) for offer in filtered]
-                    discovered_count = len(filtered)
-                if limit_offers:
-                    offer_urls = offer_urls[:limit_offers]
-                offers_fetched, errors_count = _fetch_parse_classify_store(
-                    source_adapter=source_adapter,
-                    offer_urls=offer_urls,
+                limit_pages=limit_pages,
+                limit_offers=limit_offers,
+                profile=profile,
+                discovery=discovery,
+                classifier=classifier,
+                llm_provider=llm_provider,
+            )
+        else:
+            try:
+                result = _crawl_anrt_source(
+                    connection=connection,
+                    raw_dir=raw_dir,
                     no_cache=no_cache,
+                    timeout=timeout,
+                    max_retries=max_retries,
+                    limit_offers=limit_offers,
                     classifier=classifier,
                     llm_provider=llm_provider,
-                    connection=connection,
-                    run_id=run_id,
-                    progress_description="Récupération détails CNRS",
+                    discovery=discovery,
+                    anrt_kind=anrt_kind,
+                    anrt_session_file=anrt_session_file,
                 )
-        else:
-            if discovery != DiscoveryMode.SITEMAP:
-                console.print(
-                    "[yellow]ANRT ignore --discovery list; discovery via listes membre.[/yellow]"
-                )
-            with AnrtClient(
-                cache_dir=raw_dir,
-                session_file=anrt_session_file,
-                timeout_seconds=timeout,
-                max_retries=max_retries,
-            ) as client:
-                source_adapter = AnrtSourceAdapter(client, kind=anrt_kind)
-                try:
-                    offer_urls = source_adapter.discover_urls(use_cache=not no_cache)
-                except AnrtAuthenticationRequired as exc:
-                    console.print(f"[red]ANRT auth requise[/red] {exc}")
+            except AnrtAuthenticationRequired as exc:
+                auth_failures.append(str(exc))
+                console.print(f"[red]ANRT auth requise[/red] {exc}")
+                if source == SourceName.ANRT:
                     raise typer.Exit(code=2) from exc
-                pages_fetched = 1 if anrt_kind != AnrtKind.BOTH else 2
-                pages_to_fetch = pages_fetched
+                continue
+
+        totals["discovered"] += result["discovered"]
+        totals["fetched"] += result["fetched"]
+        totals["errors"] += result["errors"]
+
+    console.print(
+        f"[green]OK[/green] {totals['fetched']} offres traitées dans {db}. "
+        f"Source: {source.value}. Erreurs: {totals['errors']}."
+    )
+    if auth_failures:
+        console.print(
+            "[yellow]ANRT ignoré pour ce run multi-source: session absente/expirée.[/yellow]"
+        )
+    if totals["discovered"] == 0 or totals["fetched"] == 0:
+        raise typer.Exit(code=1 if not auth_failures else 2)
+    total_attempted = totals["fetched"] + totals["errors"]
+    if total_attempted and totals["errors"] / total_attempted > max_error_rate:
+        raise typer.Exit(code=1)
+
+
+def _crawl_cnrs_source(
+    *,
+    connection: object,
+    raw_dir: Path,
+    no_cache: bool,
+    timeout: float,
+    max_retries: int,
+    limit_pages: int,
+    limit_offers: int | None,
+    profile: SearchProfile,
+    discovery: DiscoveryMode,
+    classifier: ClassifierMode,
+    llm_provider: LlmProvider | None,
+) -> dict[str, int]:
+    run_id = start_run(connection, profile=profile.value, source="cnrs")
+    discovered = []
+    pages_fetched = 0
+    pages_to_fetch = 0
+    discovered_count = 0
+    offers_fetched = 0
+    errors_count = 0
+    status_message: str | None = None
+    try:
+        with CnrsClient(
+            cache_dir=raw_dir,
+            timeout_seconds=timeout,
+            max_retries=max_retries,
+        ) as client:
+            source_adapter = CnrsSourceAdapter(client)
+            if discovery == DiscoveryMode.SITEMAP:
+                offer_urls = _filter_sitemap_urls_by_profile(
+                    source_adapter.discover_urls(use_cache=not no_cache),
+                    profile,
+                )
+                pages_fetched = 1
+                pages_to_fetch = 1
                 discovered_count = len(offer_urls)
+            else:
+                first_html = client.fetch_list_page(1, use_cache=not no_cache)
+                pages_fetched += 1
+                first_offers, stats = parse_list_page(first_html)
+                pages_to_fetch = min(limit_pages, stats.total_pages or limit_pages)
+                discovered.extend(first_offers)
+
+                for page in range(2, pages_to_fetch + 1):
+                    html = client.fetch_list_page(page, use_cache=not no_cache)
+                    pages_fetched += 1
+                    offers, _ = parse_list_page(html)
+                    discovered.extend(offers)
+
+                filtered = filter_offers_by_profile(dedupe_offers(discovered), profile)
+                offer_urls = [str(offer.url) for offer in filtered]
+                discovered_count = len(filtered)
             if limit_offers:
                 offer_urls = offer_urls[:limit_offers]
-                offers_fetched, errors_count = _fetch_parse_classify_store(
-                    source_adapter=source_adapter,
-                    offer_urls=offer_urls,
-                    no_cache=no_cache,
-                    classifier=classifier,
-                    llm_provider=llm_provider,
-                    connection=connection,
-                    run_id=run_id,
-                    progress_description="Récupération détails ANRT",
-                )
+            offers_fetched, errors_count = _fetch_parse_classify_store(
+                source_adapter=source_adapter,
+                offer_urls=offer_urls,
+                no_cache=no_cache,
+                classifier=classifier,
+                llm_provider=llm_provider,
+                connection=connection,
+                run_id=run_id,
+                progress_description="Récupération détails CNRS",
+            )
     finally:
+        if discovered_count == 0 or offers_fetched == 0:
+            status_message = "no_offers_processed"
         finish_run(
             connection,
             run_id,
@@ -197,20 +242,89 @@ def crawl(
             offers_discovered=discovered_count,
             offers_fetched=offers_fetched,
             errors_count=errors_count,
+            status_message=status_message,
         )
-
     console.print(
-        f"[green]OK[/green] {offers_fetched} offres traitées dans {db}. "
-        f"Source: {source.value}. Découverte: {discovery.value}. "
-        f"Pages liste explorées: {pages_to_fetch}. "
-        f"Run: {run_id}. "
-        f"Erreurs: {errors_count}."
+        f"[green]CNRS[/green] {offers_fetched} offres traitées. "
+        f"Découverte: {discovery.value}. Pages liste explorées: {pages_to_fetch}. "
+        f"Run: {run_id}. Erreurs: {errors_count}."
     )
-    if discovered_count == 0 or offers_fetched == 0:
-        raise typer.Exit(code=1)
-    total_attempted = offers_fetched + errors_count
-    if total_attempted and errors_count / total_attempted > max_error_rate:
-        raise typer.Exit(code=1)
+    return {"discovered": discovered_count, "fetched": offers_fetched, "errors": errors_count}
+
+
+def _crawl_anrt_source(
+    *,
+    connection: object,
+    raw_dir: Path,
+    no_cache: bool,
+    timeout: float,
+    max_retries: int,
+    limit_offers: int | None,
+    classifier: ClassifierMode,
+    llm_provider: LlmProvider | None,
+    discovery: DiscoveryMode,
+    anrt_kind: AnrtKind,
+    anrt_session_file: Path | None,
+) -> dict[str, int]:
+    run_id = start_run(
+        connection,
+        profile="anrt_cifre",
+        source="anrt",
+        source_kind=anrt_kind.value,
+    )
+    pages_fetched = 0
+    discovered_count = 0
+    offers_fetched = 0
+    errors_count = 0
+    status_message: str | None = None
+    try:
+        if discovery != DiscoveryMode.SITEMAP:
+            console.print(
+                "[yellow]ANRT ignore --discovery list; discovery via listes membre.[/yellow]"
+            )
+        with AnrtClient(
+            cache_dir=raw_dir,
+            session_file=anrt_session_file,
+            timeout_seconds=timeout,
+            max_retries=max_retries,
+        ) as client:
+            source_adapter = AnrtSourceAdapter(client, kind=anrt_kind)
+            try:
+                offer_urls = source_adapter.discover_urls(use_cache=not no_cache)
+            except AnrtAuthenticationRequired as exc:
+                status_message = "auth_required"
+                raise exc
+            pages_fetched = 1 if anrt_kind != AnrtKind.BOTH else 2
+            discovered_count = len(offer_urls)
+            if limit_offers:
+                offer_urls = offer_urls[:limit_offers]
+            offers_fetched, errors_count = _fetch_parse_classify_store(
+                source_adapter=source_adapter,
+                offer_urls=offer_urls,
+                no_cache=no_cache,
+                classifier=classifier,
+                llm_provider=llm_provider,
+                connection=connection,
+                run_id=run_id,
+                progress_description="Récupération détails ANRT",
+            )
+    finally:
+        if status_message is None and (discovered_count == 0 or offers_fetched == 0):
+            status_message = "no_offers_processed"
+        finish_run(
+            connection,
+            run_id,
+            pages_fetched=pages_fetched,
+            offers_discovered=discovered_count,
+            offers_fetched=offers_fetched,
+            errors_count=errors_count,
+            status_message=status_message,
+        )
+    console.print(
+        f"[green]ANRT[/green] {offers_fetched} offres traitées. "
+        f"Kind: {anrt_kind.value}. Run: {run_id}. Erreurs: {errors_count}."
+    )
+    return {"discovered": discovered_count, "fetched": offers_fetched, "errors": errors_count}
 
 
 @app.command("profile-audit")
@@ -243,6 +357,38 @@ def profile_audit(
     table.add_column("Offres", justify="right")
     for profile in SearchProfile:
         table.add_row(profile.value, str(len(filter_offers_by_profile(deduped, profile))))
+    console.print(table)
+
+
+@app.command("anrt-session-check")
+def anrt_session_check(
+    anrt_session_file: Path | None = typer.Option(
+        None,
+        help="Fichier cookies Playwright/JSON local pour accéder à ANRT.",
+    ),
+    raw_dir: Path = typer.Option(Path("data/raw"), help="Dossier de snapshots HTML."),
+    no_cache: bool = typer.Option(False, help="Ignorer les snapshots HTML existants."),
+    timeout: float = typer.Option(30.0, min=1.0, help="Timeout HTTP en secondes."),
+    max_retries: int = typer.Option(1, min=0, help="Nombre de retries HTTP transitoires."),
+) -> None:
+    """Vérifie qu'une session ANRT locale atteint les listes entreprise/laboratoire."""
+    with AnrtClient(
+        cache_dir=raw_dir,
+        session_file=anrt_session_file,
+        timeout_seconds=timeout,
+        max_retries=max_retries,
+    ) as client:
+        adapter = AnrtSourceAdapter(client, kind=AnrtKind.BOTH)
+        try:
+            urls = adapter.discover_urls(use_cache=not no_cache)
+        except AnrtAuthenticationRequired as exc:
+            console.print(f"[red]ANRT auth requise[/red] {exc}")
+            raise typer.Exit(code=2) from exc
+
+    table = Table(title="ANRT session")
+    table.add_column("Statut")
+    table.add_column("URLs découvertes", justify="right")
+    table.add_row("connectée", str(len(urls)))
     console.print(table)
 
 
@@ -301,6 +447,13 @@ def audit(
         bucket_table.add_row(str(bucket), str(count))
     console.print(bucket_table)
 
+    source_table = Table(title="Sources")
+    source_table.add_column("Source")
+    source_table.add_column("Offres", justify="right")
+    for source_name, count in dict(counts["by_source"]).items():
+        source_table.add_row(str(source_name), str(count))
+    console.print(source_table)
+
     exclusion_table = Table(title="Exclusions")
     exclusion_table.add_column("Raison")
     exclusion_table.add_column("Offres", justify="right")
@@ -312,12 +465,14 @@ def audit(
         run = dict(counts["latest_run"])
         console.print(
             "[bold]Dernier run[/bold] "
-            f"#{run['id']} profile={run['profile']} "
+            f"#{run['id']} source={run.get('source', 'cnrs')} "
+            f"kind={run.get('source_kind') or 'n/a'} profile={run['profile']} "
             f"pages={run['pages_fetched']} fetched={run['offers_fetched']} "
-            f"errors={run['errors_count']}"
+            f"errors={run['errors_count']} status={run.get('status_message') or 'ok'}"
         )
 
     top_table = Table(title="Top scores bruts")
+    top_table.add_column("Source")
     top_table.add_column("Référence")
     top_table.add_column("Bucket")
     top_table.add_column("Score", justify="right")
@@ -325,6 +480,7 @@ def audit(
     for row in list(counts["top_scores"]):
         score = row["ai_relevance_score"]
         top_table.add_row(
+            str(row["source"]),
             str(row["reference"] or ""),
             str(row["target_bucket"]),
             f"{score:.2f}" if isinstance(score, float) else str(score),
@@ -339,6 +495,10 @@ def eval(
         Path("tests/fixtures/evaluation/offers.json"),
         help="Dataset annoté JSON.",
     ),
+    source: SourceName | None = typer.Option(
+        None,
+        help="Dataset par défaut de la source: cnrs ou anrt.",
+    ),
     min_bucket_accuracy: float = typer.Option(
         0.9,
         min=0,
@@ -347,6 +507,10 @@ def eval(
     ),
 ) -> None:
     """Évalue la classification sur le dataset annoté local."""
+    if source == SourceName.ANRT and dataset == Path("tests/fixtures/evaluation/offers.json"):
+        dataset = Path("tests/fixtures/evaluation/anrt_offers.json")
+    elif source in {SourceName.CNRS, SourceName.ALL}:
+        dataset = Path("tests/fixtures/evaluation/offers.json")
     summary = run_evaluation(load_evaluation_cases(dataset))
 
     console.print(f"[bold]Cas évalués[/bold] {summary.total}")
