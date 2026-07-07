@@ -21,6 +21,7 @@ uv sync
 uv run cnrs-jobs crawl
 uv run cnrs-jobs crawl --profile doctorant --limit-offers 25
 uv run cnrs-jobs crawl --classifier hybrid --limit-offers 10
+uv run cnrs-jobs crawl --source anrt --anrt-kind entreprise --anrt-session-file data/auth/anrt-cookies.json
 uv run cnrs-jobs export
 ```
 
@@ -36,6 +37,9 @@ Sorties par défaut :
 
 ```bash
 uv run cnrs-jobs crawl
+uv run cnrs-jobs crawl --source cnrs
+uv run cnrs-jobs crawl --source anrt --anrt-kind entreprise --anrt-session-file data/auth/anrt-cookies.json
+uv run cnrs-jobs crawl --source anrt --anrt-kind laboratoire --anrt-session-file data/auth/anrt-cookies.json
 uv run cnrs-jobs crawl --discovery list --limit-pages 13
 uv run cnrs-jobs profile-audit --limit-pages 2
 uv run cnrs-jobs export --format markdown --output cnrs_ia_jobs.md
@@ -68,7 +72,10 @@ seuil sans modifier la shortlist par défaut. Un exemple cron local est disponib
 
 Le modèle est prêt pour plusieurs portails : `JobOffer.source`, `source_specific` et l'interface
 `SourceAdapter` permettent d'ajouter une source sans modifier la classification centrale. CNRS reste
-la seule source active pour l'instant.
+la source publique stable. ANRT/CIFRE est disponible comme source authentifiée préparatoire :
+`--source anrt` sait refuser explicitement une session absente ou expirée, parser des pages
+entreprise/laboratoire et produire des offres normalisées, mais un audit avec compte connecté reste
+nécessaire avant automatisation quotidienne.
 
 ## Development contract
 

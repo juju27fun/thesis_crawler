@@ -7,6 +7,9 @@ __pycache__/
 data/raw/
 data/digests/
 data/logs/
+data/auth/
+data/anrt_session/
+playwright/.auth/
 data/*.sqlite
 cnrs_ia_jobs.md
 cnrs_ia_jobs.csv

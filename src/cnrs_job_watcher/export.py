@@ -4,6 +4,7 @@ import csv
 from pathlib import Path
 
 from cnrs_job_watcher.schemas import JobOffer, TargetBucket
+from cnrs_job_watcher.sources import source_definition
 
 BUCKET_TITLES: dict[TargetBucket, str] = {
     "primary_target": "Très pertinentes",
@@ -15,7 +16,7 @@ BUCKET_TITLES: dict[TargetBucket, str] = {
 
 def export_markdown(offers: list[JobOffer], output: Path) -> None:
     output.parent.mkdir(parents=True, exist_ok=True) if output.parent != Path(".") else None
-    lines = ["# Offres CNRS IA / ML accessibles BAC+5", ""]
+    lines = ["# Offres de thèse IA / ML", ""]
     if not offers:
         lines.append("Aucune offre pertinente dans la base locale pour le seuil demandé.")
     for bucket, title in BUCKET_TITLES.items():
@@ -28,11 +29,12 @@ def export_markdown(offers: list[JobOffer], output: Path) -> None:
                 f"{offer.ai_relevance_score:.2f}" if offer.ai_relevance_score is not None else "n/a"
             )
             flags = ", ".join(offer.risk_flags) if offer.risk_flags else "aucun"
+            origin = _display_origin(offer)
             lines.extend(
                 [
                     f"### {offer.title}",
                     "",
-                    f"- Source : {offer.source}",
+                    f"- Source : {origin}",
                     f"- Type : {offer.contract_type or 'n/a'}",
                     f"- Durée : {offer.duration or 'n/a'}",
                     f"- Niveau : {offer.education_level or 'n/a'}",
@@ -59,6 +61,7 @@ def export_csv(offers: list[JobOffer], output: Path) -> None:
             fieldnames=[
                 "reference",
                 "source",
+                "origin",
                 "bucket",
                 "score",
                 "title",
@@ -84,6 +87,7 @@ def export_csv(offers: list[JobOffer], output: Path) -> None:
                 {
                     "reference": offer.reference,
                     "source": offer.source,
+                    "origin": _display_origin(offer),
                     "bucket": offer.target_bucket,
                     "score": offer.ai_relevance_score,
                     "title": offer.title,
@@ -103,3 +107,18 @@ def export_csv(offers: list[JobOffer], output: Path) -> None:
                     "url": str(offer.url),
                 }
             )
+
+
+def _display_origin(offer: JobOffer) -> str:
+    if offer.source == "anrt":
+        kind = offer.source_specific.get("anrt_kind")
+        if kind == "entreprise":
+            return "ANRT entreprise"
+        if kind == "laboratoire":
+            return "ANRT laboratoire"
+        return "ANRT"
+    if offer.source == "cnrs":
+        return source_definition("cnrs").display_name
+    if offer.source in {"anrt"}:
+        return source_definition(offer.source).display_name
+    return offer.source

@@ -12,6 +12,7 @@ from rich.console import Console
 from rich.progress import track
 from rich.table import Table
 
+from cnrs_job_watcher.anrt.fetch import AnrtAuthenticationRequired, AnrtClient, AnrtKind
 from cnrs_job_watcher.classify import apply_classification
 from cnrs_job_watcher.evaluation import load_evaluation_cases, run_evaluation
 from cnrs_job_watcher.export import export_csv, export_markdown
@@ -25,7 +26,7 @@ from cnrs_job_watcher.llm_classifier import (
 from cnrs_job_watcher.parse import parse_list_page
 from cnrs_job_watcher.profiles import SearchProfile, dedupe_offers, filter_offers_by_profile
 from cnrs_job_watcher.schemas import JobOffer
-from cnrs_job_watcher.sources import CnrsSourceAdapter
+from cnrs_job_watcher.sources import AnrtSourceAdapter, CnrsSourceAdapter, SourceAdapter
 from cnrs_job_watcher.storage import (
     audit_counts,
     connect,
@@ -47,6 +48,11 @@ console = Console()
 class DiscoveryMode(StrEnum):
     SITEMAP = "sitemap"
     LIST = "list"
+
+
+class SourceName(StrEnum):
+    CNRS = "cnrs"
+    ANRT = "anrt"
 
 
 @app.command()
@@ -84,8 +90,17 @@ def crawl(
         DiscoveryMode.SITEMAP,
         help="Source de découverte: sitemap exhaustif ou pagination liste legacy.",
     ),
+    source: SourceName = typer.Option(SourceName.CNRS, help="Source à crawler."),
+    anrt_kind: AnrtKind = typer.Option(
+        AnrtKind.BOTH,
+        help="Sous-source ANRT: entreprise, laboratoire ou both.",
+    ),
+    anrt_session_file: Path | None = typer.Option(
+        None,
+        help="Fichier cookies Playwright/JSON local pour accéder à ANRT.",
+    ),
 ) -> None:
-    """Récupère les offres publiques CNRS, parse les détails, classe et stocke."""
+    """Récupère les offres d'une source, parse les détails, classe et stocke."""
     discovered = []
     pages_to_fetch = 0
     pages_fetched = 0
@@ -99,62 +114,81 @@ def crawl(
         console.print("[yellow]OPENAI_API_KEY absent; fallback règles seules.[/yellow]")
 
     try:
-        with CnrsClient(
-            cache_dir=raw_dir,
-            timeout_seconds=timeout,
-            max_retries=max_retries,
-        ) as client:
-            source_adapter = CnrsSourceAdapter(client)
-            if discovery == DiscoveryMode.SITEMAP:
-                offer_urls = _filter_sitemap_urls_by_profile(
-                    source_adapter.discover_urls(use_cache=not no_cache),
-                    profile,
-                )
-                pages_fetched = 1
-                pages_to_fetch = 1
-                discovered_count = len(offer_urls)
-            else:
-                first_html = client.fetch_list_page(1, use_cache=not no_cache)
-                pages_fetched += 1
-                first_offers, stats = parse_list_page(first_html)
-                pages_to_fetch = min(limit_pages, stats.total_pages or limit_pages)
-                discovered.extend(first_offers)
-
-                for page in range(2, pages_to_fetch + 1):
-                    html = client.fetch_list_page(page, use_cache=not no_cache)
+        if source == SourceName.CNRS:
+            with CnrsClient(
+                cache_dir=raw_dir,
+                timeout_seconds=timeout,
+                max_retries=max_retries,
+            ) as client:
+                source_adapter = CnrsSourceAdapter(client)
+                if discovery == DiscoveryMode.SITEMAP:
+                    offer_urls = _filter_sitemap_urls_by_profile(
+                        source_adapter.discover_urls(use_cache=not no_cache),
+                        profile,
+                    )
+                    pages_fetched = 1
+                    pages_to_fetch = 1
+                    discovered_count = len(offer_urls)
+                else:
+                    first_html = client.fetch_list_page(1, use_cache=not no_cache)
                     pages_fetched += 1
-                    offers, _ = parse_list_page(html)
-                    discovered.extend(offers)
+                    first_offers, stats = parse_list_page(first_html)
+                    pages_to_fetch = min(limit_pages, stats.total_pages or limit_pages)
+                    discovered.extend(first_offers)
 
-                filtered = filter_offers_by_profile(dedupe_offers(discovered), profile)
-                offer_urls = [str(offer.url) for offer in filtered]
-                discovered_count = len(filtered)
+                    for page in range(2, pages_to_fetch + 1):
+                        html = client.fetch_list_page(page, use_cache=not no_cache)
+                        pages_fetched += 1
+                        offers, _ = parse_list_page(html)
+                        discovered.extend(offers)
+
+                    filtered = filter_offers_by_profile(dedupe_offers(discovered), profile)
+                    offer_urls = [str(offer.url) for offer in filtered]
+                    discovered_count = len(filtered)
+                if limit_offers:
+                    offer_urls = offer_urls[:limit_offers]
+                offers_fetched, errors_count = _fetch_parse_classify_store(
+                    source_adapter=source_adapter,
+                    offer_urls=offer_urls,
+                    no_cache=no_cache,
+                    classifier=classifier,
+                    llm_provider=llm_provider,
+                    connection=connection,
+                    run_id=run_id,
+                    progress_description="Récupération détails CNRS",
+                )
+        else:
+            if discovery != DiscoveryMode.SITEMAP:
+                console.print(
+                    "[yellow]ANRT ignore --discovery list; discovery via listes membre.[/yellow]"
+                )
+            with AnrtClient(
+                cache_dir=raw_dir,
+                session_file=anrt_session_file,
+                timeout_seconds=timeout,
+                max_retries=max_retries,
+            ) as client:
+                source_adapter = AnrtSourceAdapter(client, kind=anrt_kind)
+                try:
+                    offer_urls = source_adapter.discover_urls(use_cache=not no_cache)
+                except AnrtAuthenticationRequired as exc:
+                    console.print(f"[red]ANRT auth requise[/red] {exc}")
+                    raise typer.Exit(code=2) from exc
+                pages_fetched = 1 if anrt_kind != AnrtKind.BOTH else 2
+                pages_to_fetch = pages_fetched
+                discovered_count = len(offer_urls)
             if limit_offers:
                 offer_urls = offer_urls[:limit_offers]
-
-            for url in track(offer_urls, description="Récupération détails CNRS"):
-                try:
-                    detail_html = client.fetch_offer_page(url, use_cache=not no_cache)
-                    content_hash = hashlib.sha256(detail_html.encode("utf-8")).hexdigest()
-                    offer = source_adapter.parse_detail(detail_html, url)
-                    offer = _classify_offer(
-                        offer.model_copy(update={"content_hash": content_hash}),
-                        mode=classifier,
-                        provider=llm_provider,
-                        connection=connection,
-                    )
-                    upsert_offer(connection, offer)
-                    record_offer_snapshot(
-                        connection,
-                        offer,
-                        content_hash=content_hash,
-                        raw_path=str(client.offer_cache_path(url)),
-                        run_id=run_id,
-                    )
-                    offers_fetched += 1
-                except Exception as exc:  # noqa: BLE001
-                    errors_count += 1
-                    console.print(f"[red]Erreur offre[/red] {url}: {exc}")
+                offers_fetched, errors_count = _fetch_parse_classify_store(
+                    source_adapter=source_adapter,
+                    offer_urls=offer_urls,
+                    no_cache=no_cache,
+                    classifier=classifier,
+                    llm_provider=llm_provider,
+                    connection=connection,
+                    run_id=run_id,
+                    progress_description="Récupération détails ANRT",
+                )
     finally:
         finish_run(
             connection,
@@ -167,7 +201,8 @@ def crawl(
 
     console.print(
         f"[green]OK[/green] {offers_fetched} offres traitées dans {db}. "
-        f"Découverte: {discovery.value}. Pages liste explorées: {pages_to_fetch}. "
+        f"Source: {source.value}. Découverte: {discovery.value}. "
+        f"Pages liste explorées: {pages_to_fetch}. "
         f"Run: {run_id}. "
         f"Erreurs: {errors_count}."
     )
@@ -409,6 +444,45 @@ def _classify_offer(
         "hybrid-llm-v1",
     )
     return classify_offer_hybrid(offer, cached_provider)
+
+
+def _fetch_parse_classify_store(
+    *,
+    source_adapter: SourceAdapter,
+    offer_urls: list[str],
+    no_cache: bool,
+    classifier: ClassifierMode,
+    llm_provider: LlmProvider | None,
+    connection: object,
+    run_id: int,
+    progress_description: str,
+) -> tuple[int, int]:
+    offers_fetched = 0
+    errors_count = 0
+    for url in track(offer_urls, description=progress_description):
+        try:
+            detail_payload = source_adapter.fetch_detail(url, use_cache=not no_cache)
+            content_hash = hashlib.sha256(detail_payload.encode("utf-8")).hexdigest()
+            offer = source_adapter.parse_detail(detail_payload, url)
+            offer = _classify_offer(
+                offer.model_copy(update={"content_hash": content_hash}),
+                mode=classifier,
+                provider=llm_provider,
+                connection=connection,
+            )
+            upsert_offer(connection, offer)
+            record_offer_snapshot(
+                connection,
+                offer,
+                content_hash=content_hash,
+                raw_path=source_adapter.snapshot_path(url),
+                run_id=run_id,
+            )
+            offers_fetched += 1
+        except Exception as exc:  # noqa: BLE001
+            errors_count += 1
+            console.print(f"[red]Erreur offre[/red] {url}: {exc}")
+    return offers_fetched, errors_count
 
 
 def _filter_sitemap_urls_by_profile(urls: list[str], profile: SearchProfile) -> list[str]:

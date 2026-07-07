@@ -225,6 +225,9 @@ def hard_filter(
     if _is_postdoc_or_doctorate_required(text, structured_text):
         return False, "not_target", "doctorate_required", "doctorate_required"
 
+    if offer.source == "anrt" and "cifre" in contract:
+        return True, "thesis_or_bac5_cdd", "bac5_accessible", None
+
     if _is_thesis(offer):
         accessibility = (
             "bac5_accessible" if "bac+5" in education or "doctorant" in contract else "unclear"
