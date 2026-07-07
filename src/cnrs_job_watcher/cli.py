@@ -12,7 +12,13 @@ from rich.console import Console
 from rich.progress import track
 from rich.table import Table
 
-from cnrs_job_watcher.anrt.fetch import AnrtAuthenticationRequired, AnrtClient, AnrtKind
+from cnrs_job_watcher.anrt.fetch import (
+    AnrtAuthenticationRequired,
+    AnrtClient,
+    AnrtFixtureClient,
+    AnrtKind,
+)
+from cnrs_job_watcher.anrt.fixtures import anonymize_fixture_tree
 from cnrs_job_watcher.classify import apply_classification
 from cnrs_job_watcher.evaluation import load_evaluation_cases, run_evaluation
 from cnrs_job_watcher.export import export_csv, export_markdown
@@ -100,6 +106,10 @@ def crawl(
         None,
         help="Fichier cookies Playwright/JSON local pour accéder à ANRT.",
     ),
+    anrt_fixture_dir: Path | None = typer.Option(
+        None,
+        help="Dossier fixture ANRT anonymisé à utiliser à la place du réseau.",
+    ),
 ) -> None:
     """Récupère les offres d'une source, parse les détails, classe et stocke."""
     connection = connect(db)
@@ -140,6 +150,7 @@ def crawl(
                     discovery=discovery,
                     anrt_kind=anrt_kind,
                     anrt_session_file=anrt_session_file,
+                    anrt_fixture_dir=anrt_fixture_dir,
                 )
             except AnrtAuthenticationRequired as exc:
                 auth_failures.append(str(exc))
@@ -265,6 +276,7 @@ def _crawl_anrt_source(
     discovery: DiscoveryMode,
     anrt_kind: AnrtKind,
     anrt_session_file: Path | None,
+    anrt_fixture_dir: Path | None,
 ) -> dict[str, int]:
     run_id = start_run(
         connection,
@@ -282,12 +294,17 @@ def _crawl_anrt_source(
             console.print(
                 "[yellow]ANRT ignore --discovery list; discovery via listes membre.[/yellow]"
             )
-        with AnrtClient(
-            cache_dir=raw_dir,
-            session_file=anrt_session_file,
-            timeout_seconds=timeout,
-            max_retries=max_retries,
-        ) as client:
+        client_context = (
+            AnrtFixtureClient(anrt_fixture_dir)
+            if anrt_fixture_dir
+            else AnrtClient(
+                cache_dir=raw_dir,
+                session_file=anrt_session_file,
+                timeout_seconds=timeout,
+                max_retries=max_retries,
+            )
+        )
+        with client_context as client:
             source_adapter = AnrtSourceAdapter(client, kind=anrt_kind)
             try:
                 offer_urls = source_adapter.discover_urls(use_cache=not no_cache)
@@ -367,17 +384,26 @@ def anrt_session_check(
         help="Fichier cookies Playwright/JSON local pour accéder à ANRT.",
     ),
     raw_dir: Path = typer.Option(Path("data/raw"), help="Dossier de snapshots HTML."),
+    anrt_fixture_dir: Path | None = typer.Option(
+        None,
+        help="Dossier fixture ANRT anonymisé à utiliser à la place du réseau.",
+    ),
     no_cache: bool = typer.Option(False, help="Ignorer les snapshots HTML existants."),
     timeout: float = typer.Option(30.0, min=1.0, help="Timeout HTTP en secondes."),
     max_retries: int = typer.Option(1, min=0, help="Nombre de retries HTTP transitoires."),
 ) -> None:
     """Vérifie qu'une session ANRT locale atteint les listes entreprise/laboratoire."""
-    with AnrtClient(
-        cache_dir=raw_dir,
-        session_file=anrt_session_file,
-        timeout_seconds=timeout,
-        max_retries=max_retries,
-    ) as client:
+    client_context = (
+        AnrtFixtureClient(anrt_fixture_dir)
+        if anrt_fixture_dir
+        else AnrtClient(
+            cache_dir=raw_dir,
+            session_file=anrt_session_file,
+            timeout_seconds=timeout,
+            max_retries=max_retries,
+        )
+    )
+    with client_context as client:
         adapter = AnrtSourceAdapter(client, kind=AnrtKind.BOTH)
         try:
             urls = adapter.discover_urls(use_cache=not no_cache)
@@ -390,6 +416,18 @@ def anrt_session_check(
     table.add_column("URLs découvertes", justify="right")
     table.add_row("connectée", str(len(urls)))
     console.print(table)
+
+
+@app.command("anrt-anonymize-fixtures")
+def anrt_anonymize_fixtures(
+    input_dir: Path = typer.Argument(..., help="Dossier de snapshots ANRT HTML source."),
+    output_dir: Path = typer.Argument(..., help="Dossier de fixtures anonymisées à produire."),
+) -> None:
+    """Copie des snapshots ANRT HTML en masquant emails et téléphones évidents."""
+    if not input_dir.exists() or not input_dir.is_dir():
+        raise typer.BadParameter(f"Dossier source introuvable: {input_dir}")
+    count = anonymize_fixture_tree(input_dir, output_dir)
+    console.print(f"[green]OK[/green] {count} fichiers HTML anonymisés vers {output_dir}.")
 
 
 @app.command("export")

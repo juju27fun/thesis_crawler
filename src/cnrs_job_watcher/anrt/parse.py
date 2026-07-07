@@ -61,7 +61,10 @@ def parse_anrt_offer_detail(html: str, url: str, kind: AnrtKind) -> JobOffer:
     description = _section_text(soup, ["Description", "Sujet", "Projet", "Contexte"])
     skills = _section_text(soup, ["Profil", "Compétences", "Competences", "Candidat"])
     location = _field_text(soup, ["Lieu", "Localisation", "Ville"])
-    published_at = _field_text(soup, ["Publication", "Publié", "Publiée", "Date"])
+    published_at = _field_text(
+        soup,
+        ["Date de publication", "Publication", "Publié", "Publiée"],
+    )
     reference = _field_text(soup, ["Référence", "Reference", "Identifiant", "ID"])
 
     lab = laboratory or company

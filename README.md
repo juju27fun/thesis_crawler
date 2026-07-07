@@ -23,7 +23,9 @@ uv run cnrs-jobs crawl --profile doctorant --limit-offers 25
 uv run cnrs-jobs crawl --classifier hybrid --limit-offers 10
 uv run cnrs-jobs crawl --source all --classifier hybrid
 uv run cnrs-jobs anrt-session-check --anrt-session-file data/auth/anrt-cookies.json
+uv run cnrs-jobs anrt-session-check --anrt-fixture-dir tests/fixtures/anrt
 uv run cnrs-jobs crawl --source anrt --anrt-kind entreprise --anrt-session-file data/auth/anrt-cookies.json
+uv run cnrs-jobs crawl --source anrt --anrt-fixture-dir tests/fixtures/anrt
 uv run cnrs-jobs export
 ```
 
@@ -42,8 +44,11 @@ uv run cnrs-jobs crawl
 uv run cnrs-jobs crawl --source cnrs
 uv run cnrs-jobs crawl --source all --classifier hybrid
 uv run cnrs-jobs anrt-session-check --anrt-session-file data/auth/anrt-cookies.json
+uv run cnrs-jobs anrt-session-check --anrt-fixture-dir tests/fixtures/anrt
 uv run cnrs-jobs crawl --source anrt --anrt-kind entreprise --anrt-session-file data/auth/anrt-cookies.json
 uv run cnrs-jobs crawl --source anrt --anrt-kind laboratoire --anrt-session-file data/auth/anrt-cookies.json
+uv run cnrs-jobs crawl --source anrt --anrt-fixture-dir tests/fixtures/anrt
+uv run cnrs-jobs anrt-anonymize-fixtures data/raw/anrt tests/fixtures/anrt_real_anonymized
 uv run cnrs-jobs crawl --discovery list --limit-pages 13
 uv run cnrs-jobs profile-audit --limit-pages 2
 uv run cnrs-jobs export --format markdown --output cnrs_ia_jobs.md
@@ -86,6 +91,11 @@ nécessaire avant automatisation quotidienne.
 run signale l'authentification ANRT manquante. Un run `--source anrt` seul échoue avec code `2` dans
 ce cas, pour éviter de confondre une session invalide avec une absence d'offres.
 
+`--anrt-fixture-dir` remplace l'accès réseau ANRT par un dossier local anonymisé contenant
+`list/entreprise.html`, `list/laboratoire.html` et les détails sous `detail/`. C'est le mode de
+debugging recommandé avant de modifier les sélecteurs. `anrt-anonymize-fixtures` aide à produire des
+fixtures committables depuis des snapshots locaux en masquant emails et téléphones évidents.
+
 ## Development contract
 
 Avant de livrer une modification du pipeline, lancer au minimum :
@@ -108,6 +118,8 @@ uv run cnrs-jobs audit --db /tmp/cnrs_smoke.sqlite
 uv run cnrs-jobs digest --db /tmp/cnrs_smoke.sqlite --output /tmp/cnrs_digest.md
 uv run cnrs-jobs eval
 uv run cnrs-jobs eval --source anrt
+uv run cnrs-jobs crawl --source anrt --anrt-fixture-dir tests/fixtures/anrt \
+  --db /tmp/anrt_fixture.sqlite --raw-dir /tmp/anrt_fixture_raw --no-cache
 ```
 
 Pour valider la couverture sitemap des thèses ratées par la pagination :

@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
-from cnrs_job_watcher.anrt.fetch import AnrtAuthenticationRequired, AnrtKind
+from cnrs_job_watcher.anrt.fetch import AnrtAuthenticationRequired, AnrtFixtureClient, AnrtKind
+from cnrs_job_watcher.anrt.fixtures import anonymize_fixture_tree, anonymize_html
 from cnrs_job_watcher.anrt.parse import parse_anrt_list_page, parse_anrt_offer_detail
 from cnrs_job_watcher.classify import apply_classification
 from cnrs_job_watcher.sources import AnrtSourceAdapter, source_definition
+
+FIXTURES = Path(__file__).parent / "fixtures"
 
 ANRT_LIST_HTML = """
 <html>
@@ -134,3 +139,44 @@ def test_source_registry_marks_anrt_as_authenticated_source() -> None:
 
     with pytest.raises(ValueError):
         source_definition("unknown")
+
+
+def test_anrt_fixture_client_runs_adapter_end_to_end() -> None:
+    adapter = AnrtSourceAdapter(AnrtFixtureClient(FIXTURES / "anrt"), kind=AnrtKind.BOTH)
+
+    urls = adapter.discover_urls(use_cache=False)
+    offers = [
+        apply_classification(adapter.parse_detail(adapter.fetch_detail(url, use_cache=False), url))
+        for url in urls
+    ]
+
+    assert [offer.reference for offer in offers] == ["CIFRE-2026-123", "CIFRE-2026-456"]
+    assert offers[0].target_bucket == "primary_target"
+    assert offers[0].source_specific["company_name"] == "Entreprise anonymisée A"
+    assert offers[0].source_specific["application_deadline"] == "2026-09-30"
+    assert offers[0].published_at_text is None
+    assert offers[1].target_bucket == "adjacent_review"
+    assert offers[1].source_specific["anrt_kind"] == "laboratoire"
+
+
+def test_anrt_fixture_anonymizer_masks_contact_details(tmp_path: Path) -> None:
+    html = "<p>Contact: jane.doe@example.com / +33 1 23 45 67 89 / 06.11.22.33.44</p>"
+
+    anonymized = anonymize_html(html)
+
+    assert "jane.doe@example.com" not in anonymized
+    assert "+33 1 23 45 67 89" not in anonymized
+    assert "06.11.22.33.44" not in anonymized
+    assert "email-anonymise@example.invalid" in anonymized
+
+    source = tmp_path / "raw"
+    output = tmp_path / "fixtures"
+    (source / "detail").mkdir(parents=True)
+    (source / "detail" / "offer.html").write_text(html, encoding="utf-8")
+
+    count = anonymize_fixture_tree(source, output)
+
+    assert count == 1
+    assert "jane.doe@example.com" not in (output / "detail" / "offer.html").read_text(
+        encoding="utf-8"
+    )

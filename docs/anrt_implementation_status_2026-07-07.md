@@ -11,6 +11,7 @@ multi-source. Le projet peut :
 - lancer ANRT seul avec garde d'authentification ;
 - lancer `--source all`, qui continue CNRS même si ANRT est déconnecté ;
 - parser et classifier des fixtures ANRT entreprise/laboratoire ;
+- crawler un dossier fixture ANRT anonymisé avec le même pipeline que le réseau ;
 - évaluer un dataset ANRT synthétique ;
 - exporter une provenance lisible et des champs CIFRE spécifiques.
 
@@ -23,6 +24,8 @@ fixtures anonymisées issues du HTML réel.
 - `cnrs-jobs crawl --source anrt --anrt-kind entreprise|laboratoire|both`
 - `cnrs-jobs crawl --source all`
 - `cnrs-jobs anrt-session-check`
+- `cnrs-jobs anrt-session-check --anrt-fixture-dir tests/fixtures/anrt`
+- `cnrs-jobs anrt-anonymize-fixtures`
 - `cnrs-jobs eval --source anrt`
 - Module `cnrs_job_watcher.anrt.fetch`
 - Module `cnrs_job_watcher.anrt.parse`
@@ -40,6 +43,7 @@ fixtures anonymisées issues du HTML réel.
   - secteur ;
   - date limite.
 - Dataset `tests/fixtures/evaluation/anrt_offers.json`
+- Fixtures HTML anonymisées `tests/fixtures/anrt`
 
 ## Garde-fous validés
 
@@ -50,6 +54,7 @@ fixtures anonymisées issues du HTML réel.
   - `data/anrt_session/`
   - `playwright/.auth/`
 - Une page ANRT logout/déconnexion n'est pas parsée comme une offre.
+- La date limite ANRT reste un champ spécifique et ne pollue pas `published_at_text`.
 - Les offres CIFRE sans signal IA/ML restent exclues.
 - Les offres CIFRE data adjacentes vont en `adjacent_review`, pas automatiquement en cible primaire.
 
@@ -64,6 +69,10 @@ uv run cnrs-jobs eval --dataset tests/fixtures/evaluation/observed_offers.json
 uv run cnrs-jobs anrt-session-check --raw-dir /tmp/anrt_session_check_raw --no-cache
 uv run cnrs-jobs crawl --source all --limit-offers 2 --db /tmp/source_all.sqlite --raw-dir /tmp/source_all_raw --no-cache
 uv run cnrs-jobs audit --db /tmp/source_all.sqlite --json
+uv run cnrs-jobs anrt-session-check --anrt-fixture-dir tests/fixtures/anrt --no-cache
+uv run cnrs-jobs crawl --source anrt --anrt-fixture-dir tests/fixtures/anrt --db /tmp/anrt_fixture.sqlite --raw-dir /tmp/anrt_fixture_raw --no-cache
+uv run cnrs-jobs export --db /tmp/anrt_fixture.sqlite --source anrt --format markdown --output /tmp/anrt_fixture.md --min-score 0.1
+uv run cnrs-jobs anrt-anonymize-fixtures tests/fixtures/anrt /tmp/anrt_anonymized_fixture_check
 ```
 
 Résultats observés :
@@ -75,6 +84,8 @@ Résultats observés :
 - évaluation CNRS observée : métriques 1.000 ;
 - `anrt-session-check` sans session : code `2`, attendu ;
 - `--source all` sans session ANRT : CNRS traité, ANRT signalé `auth_required`.
+- mode fixture ANRT : 2 offres traitées, 0 erreur, buckets `primary_target` et `adjacent_review`.
+- export fixture ANRT : provenance entreprise/laboratoire et date limite affichées.
 
 ## Reste à faire pour compléter le plan
 

@@ -50,6 +50,32 @@ Si ANRT est déconnecté, CNRS continue en mode `--source all` et le run indique
 est absente ou expirée. Pour diagnostiquer seulement ANRT, utiliser `--source anrt`, qui échoue avec
 un code `2` quand l'authentification manque.
 
+## Smoke ANRT hors réseau
+
+Le dossier `tests/fixtures/anrt` permet de valider le pipeline ANRT sans session :
+
+```bash
+uv run cnrs-jobs anrt-session-check \
+  --anrt-fixture-dir tests/fixtures/anrt \
+  --no-cache
+
+uv run cnrs-jobs crawl \
+  --source anrt \
+  --anrt-fixture-dir tests/fixtures/anrt \
+  --db /tmp/anrt_fixture.sqlite \
+  --raw-dir /tmp/anrt_fixture_raw \
+  --no-cache
+```
+
+Pour transformer des snapshots locaux en fixtures committables, utiliser d'abord :
+
+```bash
+uv run cnrs-jobs anrt-anonymize-fixtures data/raw/anrt tests/fixtures/anrt_real_anonymized
+```
+
+Relire ensuite les fixtures produites avant commit : l'outil masque emails et téléphones évidents,
+mais il ne garantit pas l'anonymisation de noms propres ou de détails confidentiels.
+
 ## Exemple cron
 
 Adapter le chemin du dépôt si nécessaire :

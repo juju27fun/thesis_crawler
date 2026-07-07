@@ -164,3 +164,39 @@ def _is_auth_redirect(exc: Exception) -> bool:
 def _write_snapshot(path: Path, html: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(html, encoding="utf-8")
+
+
+class AnrtFixtureClient:
+    """Read ANRT list/detail pages from an anonymized local fixture directory."""
+
+    def __init__(self, fixture_dir: Path) -> None:
+        self.fixture_dir = fixture_dir
+
+    def close(self) -> None:
+        return None
+
+    def __enter__(self) -> AnrtFixtureClient:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.close()
+
+    def fetch_list_page(self, kind: AnrtKind, use_cache: bool = True) -> str:
+        del use_cache
+        if kind == AnrtKind.BOTH:
+            raise ValueError("fetch_list_page expects entreprise or laboratoire, not both")
+        path = self.fixture_dir / "list" / f"{kind.value}.html"
+        if not path.exists():
+            raise FileNotFoundError(f"ANRT fixture list page not found: {path}")
+        return path.read_text(encoding="utf-8")
+
+    def fetch_offer_page(self, url: str, use_cache: bool = True) -> str:
+        del use_cache
+        path = self.offer_cache_path(url)
+        if not path.exists():
+            raise FileNotFoundError(f"ANRT fixture detail page not found: {path}")
+        return path.read_text(encoding="utf-8")
+
+    def offer_cache_path(self, url: str) -> Path:
+        filename = f"{slugify(url.replace(ANRT_BASE_URL, ''))}.html"
+        return self.fixture_dir / "detail" / filename
