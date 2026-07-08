@@ -32,6 +32,8 @@ fixtures anonymisées issues du HTML réel.
 - `cnrs-jobs changes --source all`
 - `cnrs-jobs anrt-session-check`
 - `cnrs-jobs anrt-session-check --anrt-fixture-dir tests/fixtures/anrt`
+- `cnrs-jobs anrt-real-smoke`
+- `cnrs-jobs anrt-real-smoke --anrt-fixture-dir tests/fixtures/anrt`
 - `cnrs-jobs anrt-anonymize-fixtures`
 - `cnrs-jobs eval --source anrt`
 - Module `cnrs_job_watcher.anrt.fetch`
@@ -102,6 +104,8 @@ fixtures anonymisées issues du HTML réel.
 - Les offres CIFRE data adjacentes vont en `adjacent_review`, pas automatiquement en cible primaire.
 - `anrt-session-check` affiche les pages liste explorées, les URLs dédupliquées, les doublons
   entreprise/laboratoire et les compteurs UI visibles.
+- `anrt-real-smoke` produit un rapport Markdown local avec statut, compteur découverte, offres
+  fetchées, erreurs, buckets, dernier run, chemin SQLite, snapshots et digest.
 - Les crawls ANRT stockent dans `runs.pages_fetched` le nombre réel de pages liste parcourues.
 
 ## Validations lancées
@@ -114,6 +118,7 @@ uv run cnrs-jobs eval --source anrt
 uv run cnrs-jobs eval --dataset tests/fixtures/evaluation/observed_offers.json
 uv run cnrs-jobs anrt-login --help
 uv run cnrs-jobs anrt-session-check --raw-dir /tmp/anrt_session_check_raw --no-cache
+uv run cnrs-jobs anrt-real-smoke --anrt-fixture-dir tests/fixtures/anrt --db /tmp/anrt_smoke.sqlite --raw-dir /tmp/anrt_smoke_raw --report /tmp/anrt_smoke.md --digest-output /tmp/anrt_smoke_digest.md --no-cache
 uv run cnrs-jobs crawl --source all --limit-offers 2 --db /tmp/source_all.sqlite --raw-dir /tmp/source_all_raw --no-cache
 uv run cnrs-jobs audit --db /tmp/source_all.sqlite --json
 uv run cnrs-jobs audit --db /tmp/anrt_scope.sqlite --source all --json
@@ -128,12 +133,13 @@ uv run cnrs-jobs anrt-anonymize-fixtures tests/fixtures/anrt /tmp/anrt_anonymize
 Résultats observés :
 
 - `ruff` vert ;
-- `pytest` vert, 51 tests ;
+- `pytest` vert, 53 tests ;
 - évaluation CNRS annotée : métriques 1.000 ;
 - évaluation ANRT synthétique 21 cas : métriques 1.000 ;
 - évaluation CNRS observée : métriques 1.000 ;
 - `anrt-login --help` expose la commande de création de session locale ;
 - `anrt-session-check` sans session : code `2`, attendu ;
+- `anrt-real-smoke` fixture : rapport `ok`, 2 URLs découvertes, 2 offres fetchées, digest produit ;
 - `--source all` sans session ANRT : CNRS traité, ANRT signalé `auth_required`.
 - mode fixture ANRT : 2 offres traitées, 0 erreur, buckets `primary_target` et `adjacent_review`.
 - mode fixture ANRT : `pages_fetched=2`, `offers_discovered=2`, `offers_fetched=2`.
@@ -172,6 +178,14 @@ uv run --with playwright cnrs-jobs anrt-login --output data/auth/anrt-cookies.js
 uv run cnrs-jobs anrt-session-check \
   --anrt-session-file data/auth/anrt-cookies.json \
   --raw-dir data/raw \
+  --no-cache
+uv run cnrs-jobs anrt-real-smoke \
+  --anrt-session-file data/auth/anrt-cookies.json \
+  --limit-offers 20 \
+  --db data/validation/anrt_real_smoke.sqlite \
+  --raw-dir data/raw \
+  --report data/validation/anrt_real_smoke.md \
+  --digest-output data/validation/anrt_real_digest.md \
   --no-cache
 ```
 

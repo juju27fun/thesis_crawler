@@ -305,16 +305,19 @@ def _crawl_anrt_source(
             console.print(
                 "[yellow]ANRT ignore --discovery list; discovery via listes membre.[/yellow]"
             )
-        client_context = (
-            AnrtFixtureClient(anrt_fixture_dir)
-            if anrt_fixture_dir
-            else AnrtClient(
-                cache_dir=raw_dir,
-                session_file=anrt_session_file,
-                timeout_seconds=timeout,
-                max_retries=max_retries,
-            )
-        )
+        if anrt_fixture_dir:
+            client_context = AnrtFixtureClient(anrt_fixture_dir)
+        else:
+            try:
+                client_context = AnrtClient(
+                    cache_dir=raw_dir,
+                    session_file=anrt_session_file,
+                    timeout_seconds=timeout,
+                    max_retries=max_retries,
+                )
+            except AnrtAuthenticationRequired as exc:
+                status_message = "auth_required"
+                raise exc
         with client_context as client:
             source_adapter = AnrtSourceAdapter(client, kind=anrt_kind)
             try:
@@ -531,6 +534,115 @@ def anrt_login(
         "Vérification recommandée: "
         f"uv run cnrs-jobs anrt-session-check --anrt-session-file {output} --no-cache"
     )
+
+
+@app.command("anrt-real-smoke")
+def anrt_real_smoke(
+    anrt_session_file: Path | None = typer.Option(
+        None,
+        help="Fichier cookies Playwright/JSON local pour accéder à ANRT.",
+    ),
+    anrt_fixture_dir: Path | None = typer.Option(
+        None,
+        help="Dossier fixture ANRT anonymisé à utiliser à la place du réseau.",
+    ),
+    anrt_kind: AnrtKind = typer.Option(
+        AnrtKind.BOTH,
+        help="Sous-source ANRT à valider: entreprise, laboratoire ou both.",
+    ),
+    limit_offers: int = typer.Option(
+        20,
+        min=1,
+        help="Nombre maximum d'offres détail à traiter pour le smoke réel.",
+    ),
+    db: Path = typer.Option(
+        Path("data/validation/anrt_real_smoke.sqlite"),
+        help="Base SQLite locale dédiée à la validation ANRT.",
+    ),
+    raw_dir: Path = typer.Option(Path("data/raw"), help="Dossier de snapshots HTML."),
+    report: Path = typer.Option(
+        Path("data/validation/anrt_real_smoke.md"),
+        help="Rapport Markdown de validation à écrire.",
+    ),
+    digest_output: Path = typer.Option(
+        Path("data/validation/anrt_real_digest.md"),
+        help="Digest Markdown ANRT extrait du smoke.",
+    ),
+    anonymized_fixture_dir: Path | None = typer.Option(
+        None,
+        help="Dossier optionnel où écrire des fixtures anonymisées depuis les snapshots du smoke.",
+    ),
+    classifier: ClassifierMode = typer.Option(
+        ClassifierMode.RULES,
+        help="Classifieur à utiliser: rules, llm ou hybrid.",
+    ),
+    min_score: float = typer.Option(0.1, min=0, max=1, help="Score minimum du digest."),
+    no_cache: bool = typer.Option(False, help="Ignorer les snapshots HTML existants."),
+    timeout: float = typer.Option(30.0, min=1.0, help="Timeout HTTP en secondes."),
+    max_retries: int = typer.Option(1, min=0, help="Nombre de retries HTTP transitoires."),
+) -> None:
+    """Lance un smoke ANRT borné et écrit un rapport de preuve local."""
+    connection = connect(db)
+    llm_provider = provider_from_env() if classifier != ClassifierMode.RULES else None
+    if classifier != ClassifierMode.RULES and llm_provider is None:
+        console.print("[yellow]OPENAI_API_KEY absent; fallback règles seules.[/yellow]")
+
+    try:
+        result = _crawl_anrt_source(
+            connection=connection,
+            raw_dir=raw_dir,
+            no_cache=no_cache,
+            timeout=timeout,
+            max_retries=max_retries,
+            limit_offers=limit_offers,
+            classifier=classifier,
+            llm_provider=llm_provider,
+            discovery=DiscoveryMode.SITEMAP,
+            anrt_kind=anrt_kind,
+            anrt_session_file=anrt_session_file,
+            anrt_fixture_dir=anrt_fixture_dir,
+        )
+    except AnrtAuthenticationRequired as exc:
+        counts = audit_counts(connection, source="anrt")
+        _write_anrt_smoke_report(
+            report,
+            db=db,
+            raw_dir=raw_dir,
+            digest_output=digest_output,
+            result={"discovered": 0, "fetched": 0, "errors": 0},
+            counts=counts,
+            status="auth_required",
+            message=str(exc),
+            fixture_audit=None,
+        )
+        console.print(f"[red]ANRT auth requise[/red] {exc}")
+        console.print(f"[yellow]Rapport[/yellow] {report}")
+        raise typer.Exit(code=2) from exc
+
+    offers = shortlist(connection, min_score=min_score, source="anrt")
+    export_markdown(offers, digest_output)
+    fixture_audit: dict[str, object] | None = None
+    if anonymized_fixture_dir:
+        anonymize_fixture_tree(raw_dir / "anrt", anonymized_fixture_dir)
+        fixture_audit = audit_anrt_fixture_tree(anonymized_fixture_dir).to_dict()
+
+    status = "ok" if result["fetched"] > 0 else "no_offers_processed"
+    counts = audit_counts(connection, source="anrt")
+    _write_anrt_smoke_report(
+        report,
+        db=db,
+        raw_dir=raw_dir,
+        digest_output=digest_output,
+        result=result,
+        counts=counts,
+        status=status,
+        message=None,
+        fixture_audit=fixture_audit,
+    )
+    console.print(f"[green]Rapport ANRT[/green] {report}")
+    console.print(f"[green]Digest ANRT[/green] {digest_output} ({len(offers)} offres).")
+    if result["fetched"] == 0 or result["errors"] > 0:
+        raise typer.Exit(code=1)
 
 
 @app.command("anrt-anonymize-fixtures")
@@ -884,6 +996,61 @@ def _source_filter_value(source: SourceName | None) -> str | None:
     if source is None or source == SourceName.ALL:
         return None
     return source.value
+
+
+def _write_anrt_smoke_report(
+    output: Path,
+    *,
+    db: Path,
+    raw_dir: Path,
+    digest_output: Path,
+    result: dict[str, int],
+    counts: dict[str, object],
+    status: str,
+    message: str | None,
+    fixture_audit: dict[str, object] | None,
+) -> None:
+    output.parent.mkdir(parents=True, exist_ok=True)
+    latest_run = counts.get("latest_run") or {}
+    by_bucket = counts.get("by_bucket") or {}
+    lines = [
+        "# Validation ANRT/CIFRE",
+        "",
+        f"- Date : {datetime.now(UTC).isoformat()}",
+        f"- Statut : {status}",
+        f"- Base SQLite : {db}",
+        f"- Raw snapshots : {raw_dir / 'anrt'}",
+        f"- Digest : {digest_output}",
+        f"- URLs découvertes : {result['discovered']}",
+        f"- Offres fetchées : {result['fetched']}",
+        f"- Erreurs détail : {result['errors']}",
+        f"- Total en base ANRT : {counts.get('total', 0)}",
+        f"- Buckets : {json.dumps(by_bucket, ensure_ascii=False, sort_keys=True)}",
+    ]
+    if isinstance(latest_run, Mapping):
+        lines.extend(
+            [
+                f"- Dernier run : #{latest_run.get('id', 'n/a')}",
+                f"- Pages liste : {latest_run.get('pages_fetched', 'n/a')}",
+                f"- Status run : {latest_run.get('status_message') or 'ok'}",
+            ]
+        )
+    if message:
+        lines.append(f"- Message : {message}")
+    if fixture_audit is not None:
+        lines.extend(
+            [
+                "",
+                "## Fixtures anonymisées",
+                "",
+                f"- Audit OK : {fixture_audit.get('ok')}",
+                f"- Détails : {fixture_audit.get('detail_files')}",
+                f"- URLs découvertes : {fixture_audit.get('discovered_urls')}",
+                f"- Détails manquants : {len(fixture_audit.get('missing_detail_urls', []))}",
+                f"- Fuites contact : {len(fixture_audit.get('contact_leak_files', []))}",
+            ]
+        )
+    output.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def _load_sync_playwright() -> object:

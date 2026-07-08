@@ -43,6 +43,22 @@ uv run cnrs-jobs anrt-session-check \
   --raw-dir data/raw
 ```
 
+Avant de l'ajouter à une routine, lancer un smoke réel borné qui écrit un rapport local :
+
+```bash
+uv run cnrs-jobs anrt-real-smoke \
+  --anrt-session-file data/auth/anrt-cookies.json \
+  --limit-offers 20 \
+  --db data/validation/anrt_real_smoke.sqlite \
+  --raw-dir data/raw \
+  --report data/validation/anrt_real_smoke.md \
+  --digest-output data/validation/anrt_real_digest.md
+```
+
+Le dossier `data/validation/` reste hors Git. Le rapport doit prouver au minimum : session valide,
+pages liste parcourues, URLs découvertes, offres fetchées, erreurs détail, buckets et chemin du
+digest produit.
+
 Une fois la session valide, le mode multi-source peut être lancé ainsi :
 
 ```bash

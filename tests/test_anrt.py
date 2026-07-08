@@ -465,3 +465,67 @@ def test_anrt_login_reports_missing_playwright(
     assert result.exit_code == 2
     assert "Playwright n'est pas installé" in result.output
     assert not (tmp_path / "anrt-cookies.json").exists()
+
+
+def test_anrt_real_smoke_runs_fixture_pipeline(tmp_path: Path) -> None:
+    report = tmp_path / "anrt_smoke.md"
+    digest = tmp_path / "anrt_digest.md"
+    db = tmp_path / "anrt.sqlite"
+    raw_dir = tmp_path / "raw"
+
+    result = CliRunner().invoke(
+        cli_module.app,
+        [
+            "anrt-real-smoke",
+            "--anrt-fixture-dir",
+            str(FIXTURES / "anrt"),
+            "--db",
+            str(db),
+            "--raw-dir",
+            str(raw_dir),
+            "--report",
+            str(report),
+            "--digest-output",
+            str(digest),
+            "--limit-offers",
+            "2",
+            "--no-cache",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    report_text = report.read_text(encoding="utf-8")
+    digest_text = digest.read_text(encoding="utf-8")
+    assert "- Statut : ok" in report_text
+    assert "- URLs découvertes : 2" in report_text
+    assert "- Offres fetchées : 2" in report_text
+    assert '"primary_target": 1' in report_text
+    assert "ANRT entreprise" in digest_text
+    assert "ANRT laboratoire" in digest_text
+
+
+def test_anrt_real_smoke_reports_auth_required_without_network(tmp_path: Path) -> None:
+    report = tmp_path / "auth_report.md"
+
+    result = CliRunner().invoke(
+        cli_module.app,
+        [
+            "anrt-real-smoke",
+            "--anrt-session-file",
+            str(tmp_path / "missing-cookies.json"),
+            "--db",
+            str(tmp_path / "auth.sqlite"),
+            "--raw-dir",
+            str(tmp_path / "raw"),
+            "--report",
+            str(report),
+            "--digest-output",
+            str(tmp_path / "digest.md"),
+        ],
+    )
+
+    assert result.exit_code == 2
+    report_text = report.read_text(encoding="utf-8")
+    assert "- Statut : auth_required" in report_text
+    assert "- Status run : auth_required" in report_text
+    assert "missing-cookies.json" in report_text
