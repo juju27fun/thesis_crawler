@@ -28,6 +28,7 @@ fixtures anonymisées issues du HTML réel.
 - `cnrs-jobs export --source all`
 - `cnrs-jobs digest --source all`
 - `cnrs-jobs audit --source all`
+- `cnrs-jobs changes --source all`
 - `cnrs-jobs anrt-session-check`
 - `cnrs-jobs anrt-session-check --anrt-fixture-dir tests/fixtures/anrt`
 - `cnrs-jobs anrt-anonymize-fixtures`
@@ -46,6 +47,7 @@ fixtures anonymisées issues du HTML réel.
 - Audit par source via `audit_counts`
 - Scope `--source all` cohérent pour crawl, export, digest et audit ;
 - Historique des disparitions via `last_seen_status=missing` ;
+- Historique des modifications via `changed_offers()` et `cnrs-jobs changes` ;
 - Exports Markdown/CSV avec :
   - origine lisible ;
   - entreprise ;
@@ -103,6 +105,7 @@ Résultats observés :
 - tests de pagination fixture : une deuxième page liste est suivie et dédupliquée.
 - `audit/export/digest --source all` : pas de filtre source, sorties multi-source prêtes.
 - `last_seen_status`: les offres non revues après un crawl complet sont marquées `missing`.
+- `changes`: les offres avec plusieurs hashes de snapshot distincts sont listées.
 
 ## Reste à faire pour compléter le plan
 

@@ -355,6 +355,7 @@ def audit_counts(connection: sqlite3.Connection, source: str | None = None) -> d
         "by_exclusion_reason": by_exclusion_reason,
         "latest_run": latest_run(connection),
         "top_scores": top_scores(connection, source=source),
+        "changed_offers": changed_offers(connection, source=source),
     }
 
 
@@ -487,6 +488,41 @@ def mark_missing_offers(
     )
     connection.commit()
     return len(missing_urls)
+
+
+def changed_offers(
+    connection: sqlite3.Connection,
+    *,
+    source: str | None = None,
+    limit: int = 20,
+) -> list[dict[str, object]]:
+    source_filter = "AND offers.source = ?" if source else ""
+    parameters: list[object] = []
+    if source:
+        parameters.append(source)
+    parameters.append(limit)
+    rows = connection.execute(
+        f"""
+        SELECT
+            offers.source,
+            offers.reference,
+            offers.title,
+            offers.url,
+            COUNT(DISTINCT offer_snapshots.content_hash) AS versions,
+            MIN(offer_snapshots.fetched_at) AS first_snapshot_at,
+            MAX(offer_snapshots.fetched_at) AS last_snapshot_at
+        FROM offer_snapshots
+        JOIN offers ON offers.url = offer_snapshots.offer_url
+        WHERE 1 = 1
+        {source_filter}
+        GROUP BY offers.url
+        HAVING COUNT(DISTINCT offer_snapshots.content_hash) > 1
+        ORDER BY last_snapshot_at DESC, offers.title ASC
+        LIMIT ?
+        """,
+        tuple(parameters),
+    ).fetchall()
+    return [dict(row) for row in rows]
 
 
 def top_scores(

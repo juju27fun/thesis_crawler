@@ -58,6 +58,8 @@ uv run cnrs-jobs export --source all --format markdown --output thesis_ia_jobs.m
 uv run cnrs-jobs audit
 uv run cnrs-jobs audit --json
 uv run cnrs-jobs audit --source all
+uv run cnrs-jobs changes --source all
+uv run cnrs-jobs changes --source anrt --json
 uv run cnrs-jobs digest
 uv run cnrs-jobs digest --source all
 uv run cnrs-jobs digest --include-excluded
@@ -86,6 +88,7 @@ seuil sans modifier la shortlist par défaut. Un exemple cron local est disponib
 Les crawls complets marquent aussi les offres d'une source comme `missing` lorsqu'elles ne sont plus
 retrouvées. Elles restent dans l'historique SQLite, mais ne sortent plus dans la shortlist/digest par
 défaut.
+`cnrs-jobs changes` liste les offres dont le hash de snapshot a changé entre deux fetchs.
 
 Le modèle est prêt pour plusieurs portails : `JobOffer.source`, `source_specific` et l'interface
 `SourceAdapter` permettent d'ajouter une source sans modifier la classification centrale. CNRS reste

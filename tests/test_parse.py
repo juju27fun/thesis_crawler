@@ -15,6 +15,7 @@ from cnrs_job_watcher.schemas import JobOffer
 from cnrs_job_watcher.sources import CnrsSourceAdapter
 from cnrs_job_watcher.storage import (
     audit_counts,
+    changed_offers,
     connect,
     finish_run,
     get_llm_cache,
@@ -477,6 +478,58 @@ def test_run_snapshot_and_digest_export(tmp_path: Path) -> None:
     assert "Ingénieur d'étude en Intelligence artificielle" in digest_path.read_text(
         encoding="utf-8"
     )
+
+
+def test_changed_offers_reports_distinct_snapshot_hashes(tmp_path: Path) -> None:
+    connection = connect(tmp_path / "changes.sqlite")
+    run_id = start_run(connection, profile="anrt_cifre", source="anrt")
+    offer = apply_classification(
+        JobOffer(
+            source="anrt",
+            source_specific={"anrt_kind": "entreprise"},
+            url="https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/123",
+            reference="CIFRE-2026-123",
+            title="Thèse CIFRE deep learning",
+            contract_type="CIFRE",
+            education_level="BAC+5 / Master",
+            description="Deep learning, PyTorch et réseaux de neurones.",
+            raw_text="Machine learning.",
+            content_hash="hash-a",
+        )
+    )
+    upsert_offer(connection, offer)
+    record_offer_snapshot(
+        connection,
+        offer,
+        content_hash="hash-a",
+        raw_path="/tmp/a.html",
+        run_id=run_id,
+    )
+    record_offer_snapshot(
+        connection,
+        offer,
+        content_hash="hash-a",
+        raw_path="/tmp/a-again.html",
+        run_id=run_id,
+    )
+
+    assert changed_offers(connection, source="anrt") == []
+
+    record_offer_snapshot(
+        connection,
+        offer,
+        content_hash="hash-b",
+        raw_path="/tmp/b.html",
+        run_id=run_id,
+    )
+
+    rows = changed_offers(connection, source="anrt")
+    counts = audit_counts(connection, source="anrt")
+
+    assert len(rows) == 1
+    assert rows[0]["reference"] == "CIFRE-2026-123"
+    assert rows[0]["versions"] == 2
+    assert counts["changed_offers"][0]["versions"] == 2
 
 
 def test_run_status_records_authenticated_source_failures(tmp_path: Path) -> None:

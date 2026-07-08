@@ -35,6 +35,7 @@ from cnrs_job_watcher.schemas import JobOffer
 from cnrs_job_watcher.sources import AnrtSourceAdapter, CnrsSourceAdapter, SourceAdapter
 from cnrs_job_watcher.storage import (
     audit_counts,
+    changed_offers,
     connect,
     excluded_offers,
     finish_run,
@@ -550,6 +551,37 @@ def audit(
             str(row["title"]),
         )
     console.print(top_table)
+
+
+@app.command()
+def changes(
+    db: Path = typer.Option(Path("data/cnrs_jobs.sqlite"), help="Base SQLite locale."),
+    source: SourceName | None = typer.Option(None, help="Filtrer par source normalisée."),
+    limit: int = typer.Option(20, min=1, help="Nombre maximum d'offres modifiées à afficher."),
+    json_output: bool = typer.Option(False, "--json", help="Sortie JSON machine-readable."),
+) -> None:
+    """Liste les offres dont le contenu brut a changé entre deux snapshots."""
+    connection = connect(db)
+    rows = changed_offers(connection, source=_source_filter_value(source), limit=limit)
+    if json_output:
+        console.print(json.dumps(rows, ensure_ascii=False, default=str))
+        return
+
+    table = Table(title="Offres modifiées")
+    table.add_column("Source")
+    table.add_column("Référence")
+    table.add_column("Versions", justify="right")
+    table.add_column("Dernier snapshot")
+    table.add_column("Titre")
+    for row in rows:
+        table.add_row(
+            str(row["source"]),
+            str(row["reference"] or ""),
+            str(row["versions"]),
+            str(row["last_snapshot_at"] or ""),
+            str(row["title"]),
+        )
+    console.print(table)
 
 
 @app.command()
