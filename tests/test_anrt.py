@@ -12,6 +12,7 @@ from cnrs_job_watcher.anrt.fetch import (
     AnrtClient,
     AnrtFixtureClient,
     AnrtKind,
+    is_logged_out_page,
 )
 from cnrs_job_watcher.anrt.fixtures import (
     anonymize_fixture_tree,
@@ -22,6 +23,7 @@ from cnrs_job_watcher.anrt.parse import (
     AnrtOfferUnavailable,
     AnrtServerErrorPage,
     AnrtUnexpectedPage,
+    parse_anrt_datatables_offer,
     parse_anrt_list_page,
     parse_anrt_offer_detail,
     parse_anrt_pagination_urls,
@@ -150,6 +152,23 @@ def test_anrt_logged_out_page_is_rejected() -> None:
             "https://offres-et-candidatures-cifre.anrt.asso.fr/logout",
             AnrtKind.ENTREPRISE,
         )
+
+
+def test_anrt_logged_in_page_with_logout_link_is_not_rejected() -> None:
+    html = """
+    <html>
+      <body>
+        <nav><a href="/logout">Déconnexion</a></nav>
+        <h1>Offres entreprise</h1>
+        <a href="/espace-membre/offre-detail/123">Voir l'offre</a>
+      </body>
+    </html>
+    """
+
+    assert is_logged_out_page(html, "/espace-membre/offre-list/entreprise") is False
+    assert parse_anrt_list_page(html, AnrtKind.ENTREPRISE) == [
+        "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/123"
+    ]
 
 
 def test_anrt_parser_rejects_unavailable_offer_and_server_error_pages() -> None:
@@ -283,6 +302,109 @@ def test_anrt_source_adapter_deduplicates_both_kinds_and_preserves_kind_for_deta
     assert [kind.ui_total for kind in audit.kinds] == [2, 2]
     assert detail.source == "anrt"
     assert detail.source_specific["anrt_kind"] == "entreprise"
+
+
+def test_anrt_source_adapter_falls_back_to_datatables_inventory() -> None:
+    class FakeDatatablesClient:
+        def fetch_list_page(self, kind: AnrtKind, use_cache: bool = True) -> str:
+            return """
+            <html><body>
+              <nav><a href="/logout">Déconnexion</a></nav>
+              <table id="offreEntrepriseList"></table>
+            </body></html>
+            """
+
+        def fetch_list_url(self, url: str, use_cache: bool = True) -> str:
+            return "<html><body></body></html>"
+
+        def fetch_datatables_page(
+            self,
+            kind: AnrtKind,
+            *,
+            start: int = 0,
+            length: int = 25,
+            draw: int = 1,
+            use_cache: bool = True,
+        ) -> dict[str, object]:
+            assert kind == AnrtKind.ENTREPRISE
+            assert start == 0
+            assert length == 25
+            return {
+                "recordsFiltered": 2,
+                "data": [
+                    {
+                        "id": 681,
+                        "crypt": "Zmhh",
+                        "titre": "Thèse CIFRE deep learning pour protéines",
+                        "rs": "Entreprise anonymisée",
+                        "entite": "Laboratoire anonymisé",
+                        "discipline": "Sciences du numérique",
+                        "secteur": "Santé",
+                        "ville": "Paris",
+                        "pays": "FRANCE",
+                        "these": "<p>Deep learning appliqué aux protéines.</p>",
+                    },
+                    {
+                        "id": 3,
+                        "crypt": "Yw",
+                        "titre": "",
+                        "rs": "Laboratoire historique",
+                        "these": "",
+                    }
+                ],
+            }
+
+        def fetch_offer_page(self, url: str, use_cache: bool = True) -> str:
+            raise AssertionError("DataTables rows should be used as detail payloads")
+
+        def offer_cache_path(self, url: str) -> str:
+            return f"/tmp/{url.rsplit('/', 1)[-1]}.html"
+
+    adapter = AnrtSourceAdapter(FakeDatatablesClient(), kind=AnrtKind.ENTREPRISE)
+
+    urls = adapter.discover_urls(use_cache=False)
+    offer = adapter.parse_detail(adapter.fetch_detail(urls[0], use_cache=False), urls[0])
+
+    assert urls == [
+        "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre/detail/Zmhh"
+    ]
+    assert adapter.last_discovery_audit.total_pages_fetched == 2
+    assert adapter.last_discovery_audit.total_urls_discovered == 1
+    assert adapter.last_discovery_audit.kinds[0].ui_total == 2
+    assert offer.reference == "681"
+    assert offer.source_specific["crypt"] == "Zmhh"
+    assert offer.source_specific["company_name"] == "Entreprise anonymisée"
+    assert offer.source_specific["laboratory_name"] == "Laboratoire anonymisé"
+    assert "protéines" in offer.title
+    assert "Deep learning appliqué" in (offer.description or "")
+
+
+def test_parse_anrt_datatables_offer_normalizes_laboratory_row() -> None:
+    offer = parse_anrt_datatables_offer(
+        {
+            "id": 682,
+            "crypt": "Zmhi",
+            "titre": "Apprentissage automatique pour ARN",
+            "rs": "Laboratoire anonymisé",
+            "sigle": "LAB",
+            "discipline": "Sciences biologiques",
+            "ville": "Lyon",
+            "pays": "FRANCE",
+            "creation": "08/07/2026 à 09:42:00",
+            "these": "<p>Modèles de deep learning pour ARN.</p>",
+        },
+        "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre/detail/Zmhi",
+        AnrtKind.LABORATOIRE,
+    )
+
+    classified = apply_classification(offer)
+
+    assert classified.source_specific["anrt_kind"] == "laboratoire"
+    assert classified.source_specific["laboratory_name"] == "Laboratoire anonymisé"
+    assert classified.location == "Lyon, FRANCE"
+    assert classified.published_at_text == "08/07/2026 à 09:42:00"
+    assert classified.target_bucket == "primary_target"
+    assert classified.ai_category == "ml_deep_learning"
 
 
 def test_source_registry_marks_anrt_as_authenticated_source() -> None:
@@ -522,6 +644,7 @@ def test_anrt_real_smoke_reports_auth_required_without_network(tmp_path: Path) -
             str(report),
             "--digest-output",
             str(tmp_path / "digest.md"),
+            "--terms-reviewed",
         ],
     )
 
@@ -530,6 +653,33 @@ def test_anrt_real_smoke_reports_auth_required_without_network(tmp_path: Path) -
     assert "- Statut : auth_required" in report_text
     assert "- Status run : auth_required" in report_text
     assert "missing-cookies.json" in report_text
+
+
+def test_anrt_real_smoke_requires_terms_review_for_real_session(tmp_path: Path) -> None:
+    report = tmp_path / "terms_report.md"
+
+    result = CliRunner().invoke(
+        cli_module.app,
+        [
+            "anrt-real-smoke",
+            "--anrt-session-file",
+            str(tmp_path / "cookies.json"),
+            "--db",
+            str(tmp_path / "terms.sqlite"),
+            "--raw-dir",
+            str(tmp_path / "raw"),
+            "--report",
+            str(report),
+            "--digest-output",
+            str(tmp_path / "digest.md"),
+        ],
+    )
+
+    assert result.exit_code == 2
+    report_text = report.read_text(encoding="utf-8")
+    assert "- Statut : terms_review_required" in report_text
+    assert "- Status run : terms_review_required" in report_text
+    assert "--anrt-terms-reviewed" in report_text
 
 
 def test_anrt_mvp_audit_passes_with_complete_fixture_evidence(tmp_path: Path) -> None:

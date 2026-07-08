@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+import json
 import re
+from typing import Any
 
 from bs4 import BeautifulSoup
 
-from cnrs_job_watcher.anrt.fetch import ANRT_BASE_URL, AnrtAuthenticationRequired, AnrtKind
+from cnrs_job_watcher.anrt.fetch import (
+    ANRT_BASE_URL,
+    AnrtAuthenticationRequired,
+    AnrtKind,
+    is_logged_out_page,
+)
 from cnrs_job_watcher.schemas import JobOffer
 
 CONTACT_RE = re.compile(
@@ -86,6 +93,10 @@ def parse_anrt_result_count(html: str) -> int | None:
 
 
 def parse_anrt_offer_detail(html: str, url: str, kind: AnrtKind) -> JobOffer:
+    row = _json_row_payload(html)
+    if row is not None:
+        return parse_anrt_datatables_offer(row, url, kind)
+
     _ensure_expected_page_state(html)
     soup = BeautifulSoup(html, "html.parser")
     raw_text = soup.get_text("\n", strip=True)
@@ -187,9 +198,79 @@ def parse_anrt_offer_detail(html: str, url: str, kind: AnrtKind) -> JobOffer:
     )
 
 
+def parse_anrt_datatables_offer(row: dict[str, Any], url: str, kind: AnrtKind) -> JobOffer:
+    title = _clean_text(str(row.get("titre") or ""))
+    if not title:
+        raise AnrtUnexpectedPage("ANRT DataTables row has no offer title.")
+
+    description_html = str(row.get("these") or "")
+    description = _html_to_text(description_html)
+    company_or_lab = _clean_text(str(row.get("rs") or "")) or None
+    entite = _clean_text(str(row.get("entite") or "")) or None
+    discipline = _clean_text(str(row.get("discipline") or "")) or None
+    sector = _clean_text(str(row.get("secteur") or "")) or None
+    city = _clean_text(str(row.get("ville") or "")) or None
+    country = _clean_text(str(row.get("pays") or "")) or None
+    location = ", ".join(part for part in [city, country] if part) or None
+    reference = str(row.get("id")) if row.get("id") is not None else _reference_from_url(url)
+
+    source_specific: dict[str, Any] = {
+        "anrt_kind": kind.value,
+        "anrt_id": row.get("id"),
+        "crypt": row.get("crypt"),
+        "open": row.get("ouverte"),
+        "status": row.get("statut"),
+        "postal_code": row.get("cp"),
+        "recruitment_date": row.get("dtrecrutement"),
+        "recruitment_date_text": row.get("recrutement"),
+        "created_at_text": row.get("creation"),
+        "updated_at_text": row.get("modification"),
+        "contact_visible": bool(CONTACT_RE.search(description)),
+    }
+    if kind == AnrtKind.ENTREPRISE:
+        _add_source_specific_field(source_specific, "company_name", company_or_lab)
+        _add_source_specific_field(source_specific, "laboratory_name", entite)
+        _add_source_specific_field(source_specific, "sector", sector)
+        lab = company_or_lab
+    else:
+        _add_source_specific_field(source_specific, "laboratory_name", company_or_lab)
+        _add_source_specific_field(source_specific, "laboratory_sigle", row.get("sigle"))
+        lab = company_or_lab
+    _add_source_specific_field(source_specific, "discipline", discipline)
+    _add_source_specific_field(source_specific, "document", row.get("doc"))
+
+    raw_parts = [
+        title,
+        company_or_lab or "",
+        entite or "",
+        discipline or "",
+        sector or "",
+        location or "",
+        description,
+    ]
+    raw_text = "\n".join(part for part in raw_parts if part)
+
+    return JobOffer(
+        source="anrt",
+        source_specific=source_specific,
+        url=_absolute_url(url),
+        reference=reference,
+        title=title,
+        contract_type="CIFRE",
+        duration="36 mois",
+        education_level="BAC+5 / Master",
+        location=location,
+        lab=lab,
+        published_at_text=_clean_text(str(row.get("creation") or "")) or None,
+        description=description,
+        skills=None,
+        raw_text=raw_text,
+    )
+
+
 def _ensure_expected_page_state(html: str) -> None:
     text = html.lower()
-    if "déconnexion" in text or "deconnexion" in text or "merci de votre visite" in text:
+    if is_logged_out_page(html):
         raise AnrtAuthenticationRequired("ANRT page is logged out.")
     if _looks_like_server_error(text):
         raise AnrtServerErrorPage("ANRT server error page returned instead of offer content.")
@@ -349,6 +430,32 @@ def _section_text(soup: BeautifulSoup, labels: list[str]) -> str | None:
 def _reference_from_url(url: str) -> str | None:
     cleaned = url.rstrip("/").split("/")[-1]
     return cleaned or None
+
+
+def _json_row_payload(payload: str) -> dict[str, Any] | None:
+    stripped = payload.lstrip()
+    if not stripped.startswith("{"):
+        return None
+    try:
+        data = json.loads(stripped)
+    except json.JSONDecodeError:
+        return None
+    if isinstance(data, dict) and isinstance(data.get("row"), dict):
+        return data["row"]
+    if isinstance(data, dict) and ("titre" in data or "these" in data):
+        return data
+    return None
+
+
+def _html_to_text(html: str) -> str:
+    if not html:
+        return ""
+    soup = BeautifulSoup(html, "html.parser")
+    return _clean_text(soup.get_text(" ", strip=True))
+
+
+def _clean_text(value: str) -> str:
+    return re.sub(r"\s+", " ", value).strip()
 
 
 def _is_section_heading(tag: object, needle: str) -> bool:

@@ -48,6 +48,7 @@ Avant de l'ajouter à une routine, lancer un smoke réel borné qui écrit un ra
 ```bash
 uv run cnrs-jobs anrt-real-smoke \
   --anrt-session-file data/auth/anrt-cookies.json \
+  --terms-reviewed \
   --limit-offers 20 \
   --db data/validation/anrt_real_smoke.sqlite \
   --raw-dir data/raw \
@@ -96,6 +97,7 @@ uv run cnrs-jobs crawl \
   --source all \
   --classifier hybrid \
   --anrt-session-file data/auth/anrt-cookies.json \
+  --anrt-terms-reviewed \
   --db data/cnrs_jobs.sqlite \
   --raw-dir data/raw
 ```

@@ -59,6 +59,10 @@ app = typer.Typer(no_args_is_help=True)
 console = Console()
 
 
+class AnrtComplianceRequired(RuntimeError):
+    """Raised when a real ANRT run is requested without explicit terms review."""
+
+
 class DiscoveryMode(StrEnum):
     SITEMAP = "sitemap"
     LIST = "list"
@@ -118,6 +122,11 @@ def crawl(
         None,
         help="Dossier fixture ANRT anonymisé à utiliser à la place du réseau.",
     ),
+    anrt_terms_reviewed: bool = typer.Option(
+        False,
+        "--anrt-terms-reviewed",
+        help="Confirme que les conditions ANRT applicables ont été relues avant crawl réel.",
+    ),
 ) -> None:
     """Récupère les offres d'une source, parse les détails, classe et stocke."""
     connection = connect(db)
@@ -159,7 +168,14 @@ def crawl(
                     anrt_kind=anrt_kind,
                     anrt_session_file=anrt_session_file,
                     anrt_fixture_dir=anrt_fixture_dir,
+                    anrt_terms_reviewed=anrt_terms_reviewed,
                 )
+            except AnrtComplianceRequired as exc:
+                auth_failures.append(str(exc))
+                console.print(f"[red]ANRT conformité requise[/red] {exc}")
+                if source == SourceName.ANRT:
+                    raise typer.Exit(code=2) from exc
+                continue
             except AnrtAuthenticationRequired as exc:
                 auth_failures.append(str(exc))
                 console.print(f"[red]ANRT auth requise[/red] {exc}")
@@ -293,6 +309,7 @@ def _crawl_anrt_source(
     anrt_kind: AnrtKind,
     anrt_session_file: Path | None,
     anrt_fixture_dir: Path | None,
+    anrt_terms_reviewed: bool,
 ) -> dict[str, int]:
     run_id = start_run(
         connection,
@@ -309,6 +326,11 @@ def _crawl_anrt_source(
         if discovery != DiscoveryMode.SITEMAP:
             console.print(
                 "[yellow]ANRT ignore --discovery list; discovery via listes membre.[/yellow]"
+            )
+        if anrt_fixture_dir is None and not anrt_terms_reviewed:
+            status_message = "terms_review_required"
+            raise AnrtComplianceRequired(
+                "ANRT real crawl requires --anrt-terms-reviewed after reviewing applicable terms."
             )
         if anrt_fixture_dir:
             client_context = AnrtFixtureClient(anrt_fixture_dir)
@@ -585,6 +607,11 @@ def anrt_real_smoke(
     no_cache: bool = typer.Option(False, help="Ignorer les snapshots HTML existants."),
     timeout: float = typer.Option(30.0, min=1.0, help="Timeout HTTP en secondes."),
     max_retries: int = typer.Option(1, min=0, help="Nombre de retries HTTP transitoires."),
+    terms_reviewed: bool = typer.Option(
+        False,
+        "--terms-reviewed",
+        help="Confirme que les conditions ANRT applicables ont été relues avant smoke réel.",
+    ),
 ) -> None:
     """Lance un smoke ANRT borné et écrit un rapport de preuve local."""
     connection = connect(db)
@@ -606,7 +633,24 @@ def anrt_real_smoke(
             anrt_kind=anrt_kind,
             anrt_session_file=anrt_session_file,
             anrt_fixture_dir=anrt_fixture_dir,
+            anrt_terms_reviewed=terms_reviewed,
         )
+    except AnrtComplianceRequired as exc:
+        counts = audit_counts(connection, source="anrt")
+        _write_anrt_smoke_report(
+            report,
+            db=db,
+            raw_dir=raw_dir,
+            digest_output=digest_output,
+            result={"discovered": 0, "fetched": 0, "errors": 0},
+            counts=counts,
+            status="terms_review_required",
+            message=str(exc),
+            fixture_audit=None,
+        )
+        console.print(f"[red]ANRT conformité requise[/red] {exc}")
+        console.print(f"[yellow]Rapport[/yellow] {report}")
+        raise typer.Exit(code=2) from exc
     except AnrtAuthenticationRequired as exc:
         counts = audit_counts(connection, source="anrt")
         _write_anrt_smoke_report(

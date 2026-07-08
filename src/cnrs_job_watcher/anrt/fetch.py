@@ -99,9 +99,46 @@ class AnrtClient:
         time.sleep(self.delay_seconds)
         return html
 
+    def fetch_datatables_page(
+        self,
+        kind: AnrtKind,
+        *,
+        start: int = 0,
+        length: int = 25,
+        draw: int = 1,
+        use_cache: bool = True,
+    ) -> dict[str, Any]:
+        if kind == AnrtKind.BOTH:
+            raise ValueError("fetch_datatables_page expects entreprise or laboratoire, not both")
+        cache_path = self.datatables_cache_path(kind, start=start, length=length)
+        if use_cache and cache_path.exists():
+            return json.loads(cache_path.read_text(encoding="utf-8"))
+
+        response = self._request(
+            "POST",
+            f"{ANRT_BASE_URL}/espace-membre/offre/dtList",
+            headers={
+                "X-Requested-With": "XMLHttpRequest",
+                "Referer": f"{ANRT_BASE_URL}/espace-membre/offre-list/{kind.value}",
+            },
+            data=_datatables_payload(kind, start=start, length=length, draw=draw),
+        )
+        text = response.text
+        if is_logged_out_page(text, str(response.url)):
+            raise AnrtAuthenticationRequired(
+                "ANRT session required: DataTables offer inventory redirected to login/logout."
+            )
+        payload = response.json()
+        _write_snapshot(cache_path, json.dumps(payload, ensure_ascii=False, indent=2))
+        time.sleep(self.delay_seconds)
+        return payload
+
     def offer_cache_path(self, url: str) -> Path:
         filename = f"{slugify(url.replace(ANRT_BASE_URL, ''))}.html"
         return self.cache_dir / "anrt" / "detail" / filename
+
+    def datatables_cache_path(self, kind: AnrtKind, *, start: int, length: int) -> Path:
+        return self.cache_dir / "anrt" / "dtlist" / f"{kind.value}-{start}-{length}.json"
 
     def _load_session_file(self, session_file: Path) -> None:
         if not session_file.exists():
@@ -155,9 +192,8 @@ def is_logged_out_page(html: str, final_url: str = "") -> bool:
     return (
         "/logout" in url
         or "/deconnexion" in url
-        or "déconnexion" in text
-        or "deconnexion" in text
         or "merci de votre visite" in text
+        or "une authentification est nécessaire" in text
     )
 
 
@@ -203,6 +239,41 @@ def _is_auth_redirect(exc: Exception) -> bool:
 def _write_snapshot(path: Path, html: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(html, encoding="utf-8")
+
+
+def _datatables_payload(
+    kind: AnrtKind,
+    *,
+    start: int,
+    length: int,
+    draw: int,
+) -> dict[str, str]:
+    columns = (
+        ["rs", "discipline", "secteur", "ville", "paysid", "dtrecrutement"]
+        if kind == AnrtKind.ENTREPRISE
+        else ["rs", "discipline", "ville", "paysid", "dtrecrutement", "ouverte"]
+    )
+    payload: dict[str, str] = {
+        "draw": str(draw),
+        "start": str(start),
+        "length": str(length),
+        "search[value]": "",
+        "search[regex]": "false",
+        "offreType": kind.value,
+        "filter_ouverte": "",
+        "filter_enseigne": "",
+        "filter_secteur": "",
+        "filter_discipline": "",
+        "filter_categorie": "",
+    }
+    for index, column in enumerate(columns):
+        payload[f"columns[{index}][data]"] = column
+        payload[f"columns[{index}][name]"] = ""
+        payload[f"columns[{index}][searchable]"] = "true"
+        payload[f"columns[{index}][orderable]"] = "true"
+        payload[f"columns[{index}][search][value]"] = ""
+        payload[f"columns[{index}][search][regex]"] = "false"
+    return payload
 
 
 class AnrtFixtureClient:

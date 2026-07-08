@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 
-from cnrs_job_watcher.anrt.fetch import AnrtClient, AnrtKind
+from cnrs_job_watcher.anrt.fetch import ANRT_BASE_URL, AnrtClient, AnrtKind
 from cnrs_job_watcher.anrt.parse import (
     parse_anrt_list_page,
     parse_anrt_offer_detail,
@@ -123,6 +124,7 @@ class AnrtSourceAdapter:
         self.kind = kind
         self.max_list_pages = max_list_pages
         self._detail_kinds: dict[str, AnrtKind] = {}
+        self._datatable_rows: dict[str, dict[str, Any]] = {}
         self.last_discovery_audit = AnrtDiscoveryAudit(
             kinds=(),
             total_pages_fetched=0,
@@ -173,11 +175,32 @@ class AnrtSourceAdapter:
                 for next_url in parse_anrt_pagination_urls(html):
                     if next_url not in pages_seen and next_url not in queued_pages:
                         queued_pages.append(next_url)
-            max_pages_reached = bool(queued_pages and len(pages_seen) >= self.max_list_pages)
+            ajax_pages_fetched = 0
+            ajax_max_pages_reached = False
+            if not kind_urls and hasattr(self.client, "fetch_datatables_page"):
+                (
+                    ajax_urls,
+                    ajax_total,
+                    ajax_pages_fetched,
+                    ajax_duplicates,
+                    ajax_max_pages_reached,
+                ) = self._discover_datatables_urls(
+                    kind,
+                    seen=seen,
+                    use_cache=use_cache,
+                )
+                duplicate_urls += ajax_duplicates
+                kind_urls.update(ajax_urls)
+                urls.extend(ajax_urls)
+                if ui_total is None:
+                    ui_total = ajax_total
+            max_pages_reached = bool(
+                queued_pages and len(pages_seen) >= self.max_list_pages
+            ) or ajax_max_pages_reached
             kind_audits.append(
                 AnrtKindDiscoveryAudit(
                     kind=kind.value,
-                    pages_fetched=len(pages_seen),
+                    pages_fetched=len(pages_seen) + ajax_pages_fetched,
                     urls_discovered=len(kind_urls),
                     ui_total=ui_total,
                     max_pages_reached=max_pages_reached,
@@ -194,6 +217,8 @@ class AnrtSourceAdapter:
         return urls
 
     def fetch_detail(self, url: str, use_cache: bool = True) -> str:
+        if url in self._datatable_rows:
+            return json.dumps({"row": self._datatable_rows[url]}, ensure_ascii=False)
         return self.client.fetch_offer_page(url, use_cache=use_cache)
 
     def parse_detail(self, payload: str, url: str) -> JobOffer:
@@ -209,3 +234,68 @@ class AnrtSourceAdapter:
         if self.kind == AnrtKind.BOTH:
             return [AnrtKind.ENTREPRISE, AnrtKind.LABORATOIRE]
         return [self.kind]
+
+    def _discover_datatables_urls(
+        self,
+        kind: AnrtKind,
+        *,
+        seen: set[str],
+        use_cache: bool,
+    ) -> tuple[list[str], int | None, int, int, bool]:
+        discovered: list[str] = []
+        total: int | None = None
+        pages_fetched = 0
+        duplicates = 0
+        max_pages_reached = False
+        length = 25
+        for page_index in range(self.max_list_pages):
+            start = page_index * length
+            payload = self.client.fetch_datatables_page(  # type: ignore[attr-defined]
+                kind,
+                start=start,
+                length=length,
+                draw=page_index + 1,
+                use_cache=use_cache,
+            )
+            pages_fetched += 1
+            rows = payload.get("data") if isinstance(payload, dict) else None
+            if not isinstance(rows, list):
+                break
+            if total is None:
+                total = _int_or_none(payload.get("recordsFiltered")) or _int_or_none(
+                    payload.get("recordsTotal")
+                )
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                if not _has_datatable_offer_content(row):
+                    continue
+                url = _anrt_datatable_detail_url(row)
+                if url in seen:
+                    duplicates += 1
+                    continue
+                seen.add(url)
+                self._detail_kinds[url] = kind
+                self._datatable_rows[url] = row
+                discovered.append(url)
+            if not rows or (total is not None and start + len(rows) >= total):
+                break
+        else:
+            max_pages_reached = total is None or len(discovered) < total
+        return discovered, total, pages_fetched, duplicates, max_pages_reached
+
+
+def _anrt_datatable_detail_url(row: dict[str, Any]) -> str:
+    token = row.get("crypt") or row.get("id")
+    return f"{ANRT_BASE_URL}/espace-membre/offre/detail/{token}"
+
+
+def _has_datatable_offer_content(row: dict[str, Any]) -> bool:
+    return bool(str(row.get("titre") or "").strip() or str(row.get("these") or "").strip())
+
+
+def _int_or_none(value: object) -> int | None:
+    try:
+        return int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None

@@ -1,11 +1,11 @@
 # Statut d'implémentation ANRT/CIFRE
 
-Date : 2026-07-07
+Date : 2026-07-07, mis à jour le 2026-07-08
 
 ## Statut court
 
-ANRT/CIFRE est maintenant intégré comme source authentifiée préparatoire dans le pipeline
-multi-source. Le projet peut :
+ANRT/CIFRE est maintenant intégré comme source authentifiée réelle dans le pipeline multi-source.
+Le projet peut :
 
 - lancer CNRS seul ;
 - lancer ANRT seul avec garde d'authentification ;
@@ -13,12 +13,15 @@ multi-source. Le projet peut :
 - parser et classifier des fixtures ANRT entreprise/laboratoire ;
 - crawler un dossier fixture ANRT anonymisé avec le même pipeline que le réseau ;
 - suivre les liens de pagination HTML des listes ANRT avec une limite de sécurité ;
+- découvrir les offres réelles via l'endpoint DataTables authentifié
+  `/espace-membre/offre/dtList`, car les pages HTML connectées ne contiennent pas les cartes
+  d'offres ;
 - marquer les offres d'une source comme `missing` quand elles disparaissent d'un crawl complet ;
 - évaluer un dataset ANRT synthétique de 21 cas ;
 - exporter une provenance lisible et des champs CIFRE spécifiques.
 
-Le crawl ANRT réel complet n'est pas encore prouvé, car il manque une session ANRT connectée et des
-fixtures anonymisées issues du HTML réel.
+Le crawl ANRT réel a été prouvé le 2026-07-08 avec une session locale hors Git : 288 offres
+exploitables découvertes, 288 offres traitées, 0 erreur détail, 62 offres dans le digest IA/ML.
 
 ## Implémenté
 
@@ -42,6 +45,9 @@ fixtures anonymisées issues du HTML réel.
 - Module `cnrs_job_watcher.anrt.parse`
 - `AnrtSourceAdapter`
 - découverte paginée via liens `rel=next`, `Suivant`, `page=` ou `offre-list` ;
+- fallback DataTables ANRT quand le HTML connecté ne contient aucun lien détail ;
+- parsing des lignes JSON DataTables en `JobOffer` sans chargement navigateur par offre ;
+- construction des liens détail via le champ ANRT `crypt` ;
 - `SourceDefinition` / `SOURCE_REGISTRY`
 - Migration SQLite non destructive des runs :
   - `source`
@@ -108,12 +114,15 @@ fixtures anonymisées issues du HTML réel.
   entreprise/laboratoire et les compteurs UI visibles.
 - `anrt-real-smoke` produit un rapport Markdown local avec statut, compteur découverte, offres
   fetchées, erreurs, buckets, dernier run, chemin SQLite, snapshots et digest.
+- Les crawls/smokes ANRT réels exigent une confirmation explicite de revue des conditions
+  applicables (`--anrt-terms-reviewed` ou `--terms-reviewed`) ; les fixtures restent exemptées.
 - `anrt-mvp-audit` vérifie les preuves locales du MVP : run ANRT fini, erreurs nulles, minimum
   d'offres, origines entreprise/laboratoire, cible primaire, digest, snapshots, fixtures anonymisées
   et dataset d'évaluation.
 - `anrt-export-eval-seed` génère depuis SQLite un dataset ANRT local annotable, compatible avec
   `cnrs-jobs eval`, en masquant emails/téléphones évidents.
 - Les crawls ANRT stockent dans `runs.pages_fetched` le nombre réel de pages liste parcourues.
+- Les lignes DataTables sans titre ni sujet sont ignorées comme lignes non exploitables.
 
 ## Validations lancées
 
@@ -137,6 +146,8 @@ uv run cnrs-jobs anrt-session-check --anrt-fixture-dir tests/fixtures/anrt --no-
 uv run cnrs-jobs crawl --source anrt --anrt-fixture-dir tests/fixtures/anrt --db /tmp/anrt_fixture.sqlite --raw-dir /tmp/anrt_fixture_raw --no-cache
 uv run cnrs-jobs export --db /tmp/anrt_fixture.sqlite --source anrt --format markdown --output /tmp/anrt_fixture.md --min-score 0.1
 uv run cnrs-jobs anrt-anonymize-fixtures tests/fixtures/anrt /tmp/anrt_anonymized_fixture_check
+uv run cnrs-jobs anrt-session-check --anrt-session-file data/auth/anrt-cookies.json --raw-dir data/raw --no-cache
+uv run cnrs-jobs anrt-real-smoke --anrt-session-file data/auth/anrt-cookies.json --terms-reviewed --limit-offers 290 --db data/anrt_real.sqlite --raw-dir data/raw --report data/validation/anrt_real_smoke_2026-07-08.md --digest-output data/digests/anrt_real_digest_2026-07-08.md
 ```
 
 Résultats observés :
@@ -159,67 +170,55 @@ Résultats observés :
 - `audit/export/digest --source all` : pas de filtre source, sorties multi-source prêtes.
 - `last_seen_status`: les offres non revues après un crawl complet sont marquées `missing`.
 - `changes`: les offres avec plusieurs hashes de snapshot distincts sont listées.
+- `anrt-session-check` réel : 18 pages liste/DataTables, 288 URLs exploitables, 0 doublon ;
+  compteurs UI bruts observés : 171 entreprise, 119 laboratoire, dont 2 lignes laboratoire vides
+  ignorées.
+- `anrt-real-smoke` réel complet : 288 offres traitées, 0 erreur détail, buckets
+  `primary_target=58`, `adjacent_review=4`, `exclude=226`, digest de 62 offres.
 
 ## Reste à faire pour compléter le plan
 
-- Se connecter localement à ANRT et lancer `anrt-session-check` avec un vrai fichier cookies.
-- Auditer les pages connectées :
-  - HTML serveur ou endpoint JSON ;
-  - pagination ;
-  - filtres ;
-  - liens détail ;
-  - champs entreprise/laboratoire réels.
-- Remplacer les fixtures synthétiques par fixtures anonymisées issues du HTML réel.
-- Adapter les sélecteurs ANRT aux pages réelles si nécessaire.
-- Prouver un crawl ANRT réel :
-  - `--anrt-kind entreprise` ;
-  - `--anrt-kind laboratoire` ;
-  - `--anrt-kind both`.
+- Remplacer ou compléter les fixtures synthétiques par fixtures anonymisées issues des payloads
+  DataTables réels.
 - Ajouter un dataset d'évaluation ANRT réel anonymisé avec au moins 20 offres observées.
 - Valider un digest réel ANRT + CNRS.
-- Décider ensuite si Playwright devient nécessaire pour la session ou si `httpx` + cookies suffit.
+- Ajouter une option dédiée de crawl complet ANRT qui exprime mieux l'intention qu'un
+  `anrt-real-smoke --limit-offers 290`.
+- Améliorer le ranking : certaines offres institutionnelles contenant "IA" sont encore classées
+  trop haut et devront être revues avec un classifieur LLM ou des règles négatives plus fines.
 
 ## Prochaine action recommandée
 
-Installer Playwright si nécessaire, obtenir une session ANRT connectée locale et exécuter :
+Pour rejouer la validation réelle avec une session locale déjà créée :
 
 ```bash
-uv run --with playwright playwright install chromium
-uv run --with playwright cnrs-jobs anrt-login --output data/auth/anrt-cookies.json
 uv run cnrs-jobs anrt-session-check \
   --anrt-session-file data/auth/anrt-cookies.json \
   --raw-dir data/raw \
   --no-cache
 uv run cnrs-jobs anrt-real-smoke \
   --anrt-session-file data/auth/anrt-cookies.json \
-  --limit-offers 20 \
-  --db data/validation/anrt_real_smoke.sqlite \
+  --terms-reviewed \
+  --limit-offers 290 \
+  --db data/anrt_real.sqlite \
   --raw-dir data/raw \
-  --report data/validation/anrt_real_smoke.md \
-  --digest-output data/validation/anrt_real_digest.md \
-  --no-cache
+  --report data/validation/anrt_real_smoke_2026-07-08.md \
+  --digest-output data/digests/anrt_real_digest_2026-07-08.md
 uv run cnrs-jobs anrt-export-eval-seed \
-  --db data/validation/anrt_real_smoke.sqlite \
+  --db data/anrt_real.sqlite \
   --output data/validation/anrt_eval_seed.json \
   --limit 20
-uv run cnrs-jobs anrt-mvp-audit \
-  --db data/validation/anrt_real_smoke.sqlite \
-  --raw-dir data/raw \
-  --digest data/validation/anrt_real_digest.md \
-  --fixture-dir tests/fixtures/anrt_real_anonymized \
-  --eval-dataset tests/fixtures/evaluation/anrt_real_offers.json \
-  --output data/validation/anrt_mvp_audit.md
 ```
 
-Si cette commande découvre des URLs, lancer ensuite un crawl très limité :
+Pour lancer le pipeline de crawl ANRT classique :
 
 ```bash
 uv run cnrs-jobs crawl \
   --source anrt \
   --anrt-kind both \
   --anrt-session-file data/auth/anrt-cookies.json \
-  --limit-offers 5 \
-  --db /tmp/anrt_real_smoke.sqlite \
-  --raw-dir /tmp/anrt_real_smoke_raw \
-  --no-cache
+  --anrt-terms-reviewed \
+  --limit-offers 290 \
+  --db data/cnrs_jobs.sqlite \
+  --raw-dir data/raw
 ```
