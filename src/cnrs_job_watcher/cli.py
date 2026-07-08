@@ -321,8 +321,11 @@ def _crawl_anrt_source(
             except AnrtAuthenticationRequired as exc:
                 status_message = "auth_required"
                 raise exc
-            pages_fetched = 1 if anrt_kind != AnrtKind.BOTH else 2
+            discovery_audit = source_adapter.last_discovery_audit
+            pages_fetched = discovery_audit.total_pages_fetched
             discovered_count = len(offer_urls)
+            if discovery_audit.max_pages_reached:
+                status_message = "max_list_pages_reached"
             if limit_offers:
                 offer_urls = offer_urls[:limit_offers]
             offers_fetched, errors_count = _fetch_parse_classify_store(
@@ -362,7 +365,8 @@ def _crawl_anrt_source(
         )
     console.print(
         f"[green]ANRT[/green] {offers_fetched} offres traitées. "
-        f"Kind: {anrt_kind.value}. Run: {run_id}. Erreurs: {errors_count}."
+        f"Kind: {anrt_kind.value}. Pages liste: {pages_fetched}. "
+        f"Découverte: {discovered_count}. Run: {run_id}. Erreurs: {errors_count}."
     )
     return {"discovered": discovered_count, "fetched": offers_fetched, "errors": errors_count}
 
@@ -436,9 +440,35 @@ def anrt_session_check(
 
     table = Table(title="ANRT session")
     table.add_column("Statut")
+    table.add_column("Pages liste", justify="right")
     table.add_column("URLs découvertes", justify="right")
-    table.add_row("connectée", str(len(urls)))
+    table.add_column("Doublons", justify="right")
+    audit = adapter.last_discovery_audit
+    status = "connectée"
+    if audit.max_pages_reached:
+        status = "connectée, limite pagination atteinte"
+    table.add_row(
+        status,
+        str(audit.total_pages_fetched),
+        str(len(urls)),
+        str(audit.duplicate_urls),
+    )
+    kind_table = Table(title="ANRT discovery par origine")
+    kind_table.add_column("Origine")
+    kind_table.add_column("Pages", justify="right")
+    kind_table.add_column("URLs", justify="right")
+    kind_table.add_column("Compteur UI", justify="right")
+    kind_table.add_column("Limite", justify="right")
+    for kind_audit in audit.kinds:
+        kind_table.add_row(
+            kind_audit.kind,
+            str(kind_audit.pages_fetched),
+            str(kind_audit.urls_discovered),
+            str(kind_audit.ui_total) if kind_audit.ui_total is not None else "n/a",
+            "oui" if kind_audit.max_pages_reached else "non",
+        )
     console.print(table)
+    console.print(kind_table)
 
 
 @app.command("anrt-anonymize-fixtures")

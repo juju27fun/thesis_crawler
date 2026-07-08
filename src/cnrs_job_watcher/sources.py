@@ -8,6 +8,7 @@ from cnrs_job_watcher.anrt.parse import (
     parse_anrt_list_page,
     parse_anrt_offer_detail,
     parse_anrt_pagination_urls,
+    parse_anrt_result_count,
 )
 from cnrs_job_watcher.fetch import CnrsClient
 from cnrs_job_watcher.parse import parse_list_page, parse_offer_detail
@@ -19,6 +20,24 @@ class SourceDefinition:
     name: str
     display_name: str
     requires_auth: bool = False
+
+
+@dataclass(frozen=True)
+class AnrtKindDiscoveryAudit:
+    kind: str
+    pages_fetched: int
+    urls_discovered: int
+    ui_total: int | None = None
+    max_pages_reached: bool = False
+
+
+@dataclass(frozen=True)
+class AnrtDiscoveryAudit:
+    kinds: tuple[AnrtKindDiscoveryAudit, ...]
+    total_pages_fetched: int
+    total_urls_discovered: int
+    duplicate_urls: int
+    max_pages_reached: bool
 
 
 SOURCE_REGISTRY: dict[str, SourceDefinition] = {
@@ -104,6 +123,13 @@ class AnrtSourceAdapter:
         self.kind = kind
         self.max_list_pages = max_list_pages
         self._detail_kinds: dict[str, AnrtKind] = {}
+        self.last_discovery_audit = AnrtDiscoveryAudit(
+            kinds=(),
+            total_pages_fetched=0,
+            total_urls_discovered=0,
+            duplicate_urls=0,
+            max_pages_reached=False,
+        )
 
     def discover(
         self,
@@ -116,9 +142,13 @@ class AnrtSourceAdapter:
     def discover_urls(self, use_cache: bool = True) -> list[str]:
         urls: list[str] = []
         seen: set[str] = set()
+        duplicate_urls = 0
+        kind_audits: list[AnrtKindDiscoveryAudit] = []
         for kind in self._kinds_to_fetch():
             pages_seen: set[str] = set()
             queued_pages: list[str | None] = [None]
+            kind_urls: set[str] = set()
+            ui_total: int | None = None
             while queued_pages and len(pages_seen) < self.max_list_pages:
                 page_url = queued_pages.pop(0)
                 page_key = page_url or f"kind:{kind.value}"
@@ -130,8 +160,12 @@ class AnrtSourceAdapter:
                     if page_url is None
                     else self.client.fetch_list_url(page_url, use_cache=use_cache)
                 )
+                if ui_total is None:
+                    ui_total = parse_anrt_result_count(html)
                 for url in parse_anrt_list_page(html, kind):
+                    kind_urls.add(url)
                     if url in seen:
+                        duplicate_urls += 1
                         continue
                     seen.add(url)
                     self._detail_kinds[url] = kind
@@ -139,6 +173,24 @@ class AnrtSourceAdapter:
                 for next_url in parse_anrt_pagination_urls(html):
                     if next_url not in pages_seen and next_url not in queued_pages:
                         queued_pages.append(next_url)
+            max_pages_reached = bool(queued_pages and len(pages_seen) >= self.max_list_pages)
+            kind_audits.append(
+                AnrtKindDiscoveryAudit(
+                    kind=kind.value,
+                    pages_fetched=len(pages_seen),
+                    urls_discovered=len(kind_urls),
+                    ui_total=ui_total,
+                    max_pages_reached=max_pages_reached,
+                )
+            )
+        total_pages = sum(audit.pages_fetched for audit in kind_audits)
+        self.last_discovery_audit = AnrtDiscoveryAudit(
+            kinds=tuple(kind_audits),
+            total_pages_fetched=total_pages,
+            total_urls_discovered=len(urls),
+            duplicate_urls=duplicate_urls,
+            max_pages_reached=any(audit.max_pages_reached for audit in kind_audits),
+        )
         return urls
 
     def fetch_detail(self, url: str, use_cache: bool = True) -> str:

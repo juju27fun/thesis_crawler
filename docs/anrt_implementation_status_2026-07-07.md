@@ -71,6 +71,9 @@ fixtures anonymisées issues du HTML réel.
 - Les offres disparues restent en historique mais ne sortent plus en shortlist/digest.
 - Les offres CIFRE sans signal IA/ML restent exclues.
 - Les offres CIFRE data adjacentes vont en `adjacent_review`, pas automatiquement en cible primaire.
+- `anrt-session-check` affiche les pages liste explorées, les URLs dédupliquées, les doublons
+  entreprise/laboratoire et les compteurs UI visibles.
+- Les crawls ANRT stockent dans `runs.pages_fetched` le nombre réel de pages liste parcourues.
 
 ## Validations lancées
 
@@ -95,13 +98,14 @@ uv run cnrs-jobs anrt-anonymize-fixtures tests/fixtures/anrt /tmp/anrt_anonymize
 Résultats observés :
 
 - `ruff` vert ;
-- `pytest` vert, 41 tests ;
+- `pytest` vert, 43 tests ;
 - évaluation CNRS annotée : métriques 1.000 ;
 - évaluation ANRT synthétique 21 cas : métriques 1.000 ;
 - évaluation CNRS observée : métriques 1.000 ;
 - `anrt-session-check` sans session : code `2`, attendu ;
 - `--source all` sans session ANRT : CNRS traité, ANRT signalé `auth_required`.
 - mode fixture ANRT : 2 offres traitées, 0 erreur, buckets `primary_target` et `adjacent_review`.
+- mode fixture ANRT : `pages_fetched=2`, `offers_discovered=2`, `offers_fetched=2`.
 - export fixture ANRT : provenance entreprise/laboratoire et date limite affichées.
 - tests de pagination fixture : une deuxième page liste est suivie et dédupliquée.
 - `audit/export/digest --source all` : pas de filtre source, sorties multi-source prêtes.

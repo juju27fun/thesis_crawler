@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from bs4 import BeautifulSoup
 
 from cnrs_job_watcher.anrt.fetch import ANRT_BASE_URL, AnrtAuthenticationRequired, AnrtKind
@@ -40,6 +42,23 @@ def parse_anrt_pagination_urls(html: str) -> list[str]:
         seen.add(url)
         urls.append(url)
     return urls
+
+
+def parse_anrt_result_count(html: str) -> int | None:
+    """Extract an optional UI count from an ANRT list page."""
+    _ensure_not_logged_out(html)
+    soup = BeautifulSoup(html, "html.parser")
+    text = soup.get_text(" ", strip=True).lower()
+    patterns = [
+        r"(\d+)\s+offres?\s+(?:trouvées?|disponibles?|publiées?|cifre)",
+        r"(\d+)\s+résultats?",
+        r"(\d+)\s+resultats?",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            return int(match.group(1))
+    return None
 
 
 def parse_anrt_offer_detail(html: str, url: str, kind: AnrtKind) -> JobOffer:

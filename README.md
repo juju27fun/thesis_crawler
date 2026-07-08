@@ -106,6 +106,9 @@ ce cas, pour éviter de confondre une session invalide avec une absence d'offres
 `list/entreprise.html`, `list/laboratoire.html` et les détails sous `detail/`. C'est le mode de
 debugging recommandé avant de modifier les sélecteurs. `anrt-anonymize-fixtures` aide à produire des
 fixtures committables depuis des snapshots locaux en masquant emails et téléphones évidents.
+`anrt-session-check` affiche aussi un audit de découverte ANRT : pages liste parcourues, URLs
+dédupliquées, doublons entreprise/laboratoire et compteur UI quand il est visible. Les crawls ANRT
+stockent le nombre réel de pages liste explorées dans le dernier run.
 
 ## Development contract
 

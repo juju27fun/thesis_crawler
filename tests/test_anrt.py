@@ -10,6 +10,7 @@ from cnrs_job_watcher.anrt.parse import (
     parse_anrt_list_page,
     parse_anrt_offer_detail,
     parse_anrt_pagination_urls,
+    parse_anrt_result_count,
 )
 from cnrs_job_watcher.classify import apply_classification
 from cnrs_job_watcher.sources import AnrtSourceAdapter, source_definition
@@ -20,6 +21,7 @@ ANRT_LIST_HTML = """
 <html>
   <body>
     <h1>Offres entreprise</h1>
+    <p>2 offres trouvées</p>
     <a href="/espace-membre/offre-detail/123">Voir l'offre</a>
     <a href="https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/456">
       Voir l'offre laboratoire
@@ -83,6 +85,11 @@ def test_parse_anrt_pagination_urls_extracts_next_pages() -> None:
     assert parse_anrt_pagination_urls(html) == [expected]
 
 
+def test_parse_anrt_result_count_extracts_optional_ui_total() -> None:
+    assert parse_anrt_result_count(ANRT_LIST_HTML) == 2
+    assert parse_anrt_result_count("<html><body>Aucun compteur</body></html>") is None
+
+
 def test_parse_anrt_detail_maps_to_common_job_offer() -> None:
     offer = parse_anrt_offer_detail(
         ANRT_DETAIL_HTML,
@@ -129,9 +136,14 @@ def test_anrt_cifre_offer_is_classified_as_primary_when_ai_ml_is_strong() -> Non
 
 
 def test_anrt_source_adapter_deduplicates_both_kinds_and_preserves_kind_for_detail() -> None:
+    list_without_pagination = ANRT_LIST_HTML.replace(
+        '<a href="/espace-membre/offre-list/entreprise">Pagination</a>',
+        "",
+    )
+
     class FakeClient:
         def fetch_list_page(self, kind: AnrtKind, use_cache: bool = True) -> str:
-            return ANRT_LIST_HTML
+            return list_without_pagination
 
         def fetch_list_url(self, url: str, use_cache: bool = True) -> str:
             return "<html><body></body></html>"
@@ -146,11 +158,17 @@ def test_anrt_source_adapter_deduplicates_both_kinds_and_preserves_kind_for_deta
 
     urls = adapter.discover_urls()
     detail = adapter.parse_detail(adapter.fetch_detail(urls[0]), urls[0])
+    audit = adapter.last_discovery_audit
 
     assert urls == [
         "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/123",
         "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/456",
     ]
+    assert audit.total_pages_fetched == 2
+    assert audit.total_urls_discovered == 2
+    assert audit.duplicate_urls == 2
+    assert [kind.kind for kind in audit.kinds] == ["entreprise", "laboratoire"]
+    assert [kind.ui_total for kind in audit.kinds] == [2, 2]
     assert detail.source == "anrt"
     assert detail.source_specific["anrt_kind"] == "entreprise"
 
@@ -188,6 +206,7 @@ def test_anrt_fixture_client_follows_paginated_list_pages(tmp_path: Path) -> Non
     (fixture_dir / "list" / "entreprise.html").write_text(
         """
         <html><body>
+          <p>2 offres disponibles</p>
           <a href="/espace-membre/offre-detail/123">Offre 1</a>
           <a href="/espace-membre/offre-list/entreprise?page=2" rel="next">Suivant</a>
         </body></html>
@@ -210,6 +229,42 @@ def test_anrt_fixture_client_follows_paginated_list_pages(tmp_path: Path) -> Non
         "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/123",
         "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/456",
     ]
+    audit = adapter.last_discovery_audit
+    assert audit.total_pages_fetched == 2
+    assert audit.total_urls_discovered == 2
+    assert audit.duplicate_urls == 0
+    assert audit.max_pages_reached is False
+    assert audit.kinds[0].ui_total == 2
+
+
+def test_anrt_discovery_audit_reports_max_page_limit(tmp_path: Path) -> None:
+    fixture_dir = tmp_path / "anrt"
+    (fixture_dir / "list").mkdir(parents=True)
+    (fixture_dir / "detail").mkdir()
+    (fixture_dir / "list" / "entreprise.html").write_text(
+        """
+        <html><body>
+          <p>2 offres trouvées</p>
+          <a href="/espace-membre/offre-detail/123">Offre 1</a>
+          <a href="/espace-membre/offre-list/entreprise?page=2" rel="next">Suivant</a>
+        </body></html>
+        """,
+        encoding="utf-8",
+    )
+
+    adapter = AnrtSourceAdapter(
+        AnrtFixtureClient(fixture_dir),
+        kind=AnrtKind.ENTREPRISE,
+        max_list_pages=1,
+    )
+
+    assert adapter.discover_urls(use_cache=False) == [
+        "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/123"
+    ]
+    audit = adapter.last_discovery_audit
+    assert audit.total_pages_fetched == 1
+    assert audit.max_pages_reached is True
+    assert audit.kinds[0].max_pages_reached is True
 
 
 def test_anrt_fixture_anonymizer_masks_contact_details(tmp_path: Path) -> None:
