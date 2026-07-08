@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from collections.abc import Iterable, Mapping
+from collections.abc import Collection, Iterable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -52,7 +52,8 @@ def initialize(connection: sqlite3.Connection) -> None:
             ai_category TEXT,
             ai_reason TEXT,
             first_seen_at TEXT NOT NULL,
-            last_seen_at TEXT NOT NULL
+            last_seen_at TEXT NOT NULL,
+            last_seen_status TEXT NOT NULL DEFAULT 'seen'
         )
         """
     )
@@ -130,6 +131,7 @@ def _add_missing_columns(connection: sqlite3.Connection) -> None:
         "classifier_version": "TEXT NOT NULL DEFAULT 'rules-v1'",
         "content_hash": "TEXT",
         "last_classified_at": "TEXT",
+        "last_seen_status": "TEXT NOT NULL DEFAULT 'seen'",
     }
     for name, definition in columns.items():
         if name not in existing:
@@ -161,6 +163,7 @@ def upsert_offer(connection: sqlite3.Connection, offer: JobOffer) -> None:
     payload["is_target"] = int(offer.is_target)
     payload["risk_flags"] = json.dumps(offer.risk_flags, ensure_ascii=False)
     payload["last_seen_at"] = now
+    payload["last_seen_status"] = "unavailable" if offer.unavailable else "seen"
 
     connection.execute(
         """
@@ -171,7 +174,7 @@ def upsert_offer(connection: sqlite3.Connection, offer: JobOffer) -> None:
             raw_text, unavailable, hard_filter_passed, is_target, target_bucket,
             accessibility, exclusion_reason, short_summary, why_interesting, risk_flags,
             classifier_version, content_hash, last_classified_at, ai_relevance_score,
-            ai_category, ai_reason, first_seen_at, last_seen_at
+            ai_category, ai_reason, first_seen_at, last_seen_at, last_seen_status
         ) VALUES (
             :url, :source, :source_specific, :reference, :title, :contract_type,
             :duration, :education_level,
@@ -179,7 +182,7 @@ def upsert_offer(connection: sqlite3.Connection, offer: JobOffer) -> None:
             :raw_text, :unavailable, :hard_filter_passed, :is_target, :target_bucket,
             :accessibility, :exclusion_reason, :short_summary, :why_interesting, :risk_flags,
             :classifier_version, :content_hash, :last_classified_at, :ai_relevance_score,
-            :ai_category, :ai_reason, :first_seen_at, :last_seen_at
+            :ai_category, :ai_reason, :first_seen_at, :last_seen_at, :last_seen_status
         )
         ON CONFLICT(url) DO UPDATE SET
             reference = excluded.reference,
@@ -211,7 +214,8 @@ def upsert_offer(connection: sqlite3.Connection, offer: JobOffer) -> None:
             ai_relevance_score = excluded.ai_relevance_score,
             ai_category = excluded.ai_category,
             ai_reason = excluded.ai_reason,
-            last_seen_at = excluded.last_seen_at
+            last_seen_at = excluded.last_seen_at,
+            last_seen_status = excluded.last_seen_status
         """,
         payload,
     )
@@ -235,6 +239,7 @@ def shortlist(
         f"""
         SELECT * FROM offers
         WHERE unavailable = 0
+          AND last_seen_status != 'missing'
           AND is_target = 1
           AND COALESCE(ai_category, '') != 'not_relevant'
           AND COALESCE(ai_relevance_score, 0) >= ?
@@ -273,6 +278,7 @@ def excluded_offers(
         f"""
         SELECT * FROM offers
         WHERE unavailable = 0
+          AND last_seen_status != 'missing'
           AND is_target = 0
           {since_filter}
           {source_filter}
@@ -294,6 +300,10 @@ def audit_counts(connection: sqlite3.Connection, source: str | None = None) -> d
     ).fetchone()[0]
     unavailable = connection.execute(
         f"SELECT COUNT(*) FROM offers WHERE unavailable = 1 {and_source_filter}",
+        tuple(parameters),
+    ).fetchone()[0]
+    missing = connection.execute(
+        f"SELECT COUNT(*) FROM offers WHERE last_seen_status = 'missing' {and_source_filter}",
         tuple(parameters),
     ).fetchone()[0]
     by_bucket = {
@@ -339,6 +349,7 @@ def audit_counts(connection: sqlite3.Connection, source: str | None = None) -> d
     return {
         "total": total,
         "unavailable": unavailable,
+        "missing": missing,
         "by_bucket": by_bucket,
         "by_source": by_source,
         "by_exclusion_reason": by_exclusion_reason,
@@ -439,6 +450,43 @@ def record_offer_snapshot(
         ),
     )
     connection.commit()
+
+
+def mark_missing_offers(
+    connection: sqlite3.Connection,
+    *,
+    source: str,
+    seen_urls: Collection[str],
+) -> int:
+    rows = connection.execute(
+        """
+        SELECT url
+        FROM offers
+        WHERE source = ?
+          AND unavailable = 0
+          AND last_seen_status != 'missing'
+        """,
+        (source,),
+    ).fetchall()
+    seen = set(seen_urls)
+    missing_urls = [row["url"] for row in rows if row["url"] not in seen]
+    if not missing_urls:
+        return 0
+
+    now = datetime.now(UTC).isoformat()
+    placeholders = ",".join("?" for _ in missing_urls)
+    connection.execute(
+        f"""
+        UPDATE offers
+        SET last_seen_status = 'missing',
+            last_seen_at = ?
+        WHERE source = ?
+          AND url IN ({placeholders})
+        """,
+        (now, source, *missing_urls),
+    )
+    connection.commit()
+    return len(missing_urls)
 
 
 def top_scores(

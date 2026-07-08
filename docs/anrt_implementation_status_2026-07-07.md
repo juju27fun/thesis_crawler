@@ -13,6 +13,7 @@ multi-source. Le projet peut :
 - parser et classifier des fixtures ANRT entreprise/laboratoire ;
 - crawler un dossier fixture ANRT anonymisé avec le même pipeline que le réseau ;
 - suivre les liens de pagination HTML des listes ANRT avec une limite de sécurité ;
+- marquer les offres d'une source comme `missing` quand elles disparaissent d'un crawl complet ;
 - évaluer un dataset ANRT synthétique ;
 - exporter une provenance lisible et des champs CIFRE spécifiques.
 
@@ -40,8 +41,11 @@ fixtures anonymisées issues du HTML réel.
   - `source`
   - `source_kind`
   - `status_message`
+- Migration SQLite non destructive des offres :
+  - `last_seen_status`
 - Audit par source via `audit_counts`
 - Scope `--source all` cohérent pour crawl, export, digest et audit ;
+- Historique des disparitions via `last_seen_status=missing` ;
 - Exports Markdown/CSV avec :
   - origine lisible ;
   - entreprise ;
@@ -61,6 +65,7 @@ fixtures anonymisées issues du HTML réel.
   - `playwright/.auth/`
 - Une page ANRT logout/déconnexion n'est pas parsée comme une offre.
 - La date limite ANRT reste un champ spécifique et ne pollue pas `published_at_text`.
+- Les offres disparues restent en historique mais ne sortent plus en shortlist/digest.
 - Les offres CIFRE sans signal IA/ML restent exclues.
 - Les offres CIFRE data adjacentes vont en `adjacent_review`, pas automatiquement en cible primaire.
 
@@ -97,6 +102,7 @@ Résultats observés :
 - export fixture ANRT : provenance entreprise/laboratoire et date limite affichées.
 - tests de pagination fixture : une deuxième page liste est suivie et dédupliquée.
 - `audit/export/digest --source all` : pas de filtre source, sorties multi-source prêtes.
+- `last_seen_status`: les offres non revues après un crawl complet sont marquées `missing`.
 
 ## Reste à faire pour compléter le plan
 

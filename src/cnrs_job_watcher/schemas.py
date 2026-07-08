@@ -15,6 +15,7 @@ AiCategory = Literal[
 
 TargetBucket = Literal["primary_target", "secondary_target", "adjacent_review", "exclude"]
 Accessibility = Literal["bac5_accessible", "doctorate_required", "unclear", "not_accessible"]
+LastSeenStatus = Literal["seen", "missing", "unavailable"]
 
 
 class ListPageStats(BaseModel):
@@ -55,6 +56,7 @@ class JobOffer(BaseModel):
     ai_reason: str | None = None
     first_seen_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     last_seen_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    last_seen_status: LastSeenStatus = "seen"
 
 
 class Classification(BaseModel):

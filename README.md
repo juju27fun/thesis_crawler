@@ -83,6 +83,10 @@ cache la décision par hash HTML de l'offre. Sans clé API, il retombe sur les r
 seuil sans modifier la shortlist par défaut. Un exemple cron local est disponible dans
 `docs/local_automation.md`.
 
+Les crawls complets marquent aussi les offres d'une source comme `missing` lorsqu'elles ne sont plus
+retrouvées. Elles restent dans l'historique SQLite, mais ne sortent plus dans la shortlist/digest par
+défaut.
+
 Le modèle est prêt pour plusieurs portails : `JobOffer.source`, `source_specific` et l'interface
 `SourceAdapter` permettent d'ajouter une source sans modifier la classification centrale. CNRS reste
 la source publique stable. ANRT/CIFRE est disponible comme source authentifiée préparatoire :

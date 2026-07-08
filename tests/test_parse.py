@@ -19,6 +19,7 @@ from cnrs_job_watcher.storage import (
     finish_run,
     get_llm_cache,
     latest_run_started_at,
+    mark_missing_offers,
     record_offer_snapshot,
     set_llm_cache,
     shortlist,
@@ -498,6 +499,37 @@ def test_run_status_records_authenticated_source_failures(tmp_path: Path) -> Non
     assert latest["status_message"] == "auth_required"
 
 
+def test_missing_offers_are_kept_in_history_but_removed_from_shortlist(tmp_path: Path) -> None:
+    connection = connect(tmp_path / "missing.sqlite")
+    offer = apply_classification(
+        JobOffer(
+            source="anrt",
+            source_specific={"anrt_kind": "entreprise"},
+            url="https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/123",
+            reference="CIFRE-2026-123",
+            title="Thèse CIFRE deep learning",
+            contract_type="CIFRE",
+            education_level="BAC+5 / Master",
+            description="Deep learning, PyTorch et réseaux de neurones.",
+            raw_text="Machine learning.",
+        )
+    )
+    upsert_offer(connection, offer)
+
+    missing_count = mark_missing_offers(connection, source="anrt", seen_urls=[])
+
+    assert missing_count == 1
+    assert shortlist(connection, min_score=0.1, source="anrt") == []
+    counts = audit_counts(connection, source="anrt")
+    assert counts["missing"] == 1
+
+    upsert_offer(connection, offer)
+    restored = shortlist(connection, min_score=0.1, source="anrt")
+
+    assert [row.reference for row in restored] == ["CIFRE-2026-123"]
+    assert restored[0].last_seen_status == "seen"
+
+
 def test_exports_include_actionable_fields_and_exclusions(tmp_path: Path) -> None:
     target = apply_classification(
         JobOffer(
@@ -731,6 +763,7 @@ def test_sqlite_migration_adds_target_columns_to_existing_database(tmp_path: Pat
         "classifier_version",
         "content_hash",
         "last_classified_at",
+        "last_seen_status",
     }.issubset(columns)
     assert connection.execute(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'llm_cache'"

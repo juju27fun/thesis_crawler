@@ -40,6 +40,7 @@ from cnrs_job_watcher.storage import (
     finish_run,
     get_llm_cache,
     latest_run_started_at,
+    mark_missing_offers,
     record_offer_snapshot,
     set_llm_cache,
     shortlist,
@@ -243,6 +244,14 @@ def _crawl_cnrs_source(
                 run_id=run_id,
                 progress_description="Récupération détails CNRS",
             )
+            if not limit_offers and discovered_count and offers_fetched:
+                missing_count = mark_missing_offers(
+                    connection,
+                    source="cnrs",
+                    seen_urls=offer_urls,
+                )
+                if missing_count:
+                    console.print(f"[yellow]CNRS[/yellow] {missing_count} offres disparues.")
     finally:
         if discovered_count == 0 or offers_fetched == 0:
             status_message = "no_offers_processed"
@@ -325,6 +334,19 @@ def _crawl_anrt_source(
                 run_id=run_id,
                 progress_description="Récupération détails ANRT",
             )
+            if (
+                not limit_offers
+                and anrt_kind == AnrtKind.BOTH
+                and discovered_count
+                and offers_fetched
+            ):
+                missing_count = mark_missing_offers(
+                    connection,
+                    source="anrt",
+                    seen_urls=offer_urls,
+                )
+                if missing_count:
+                    console.print(f"[yellow]ANRT[/yellow] {missing_count} offres disparues.")
     finally:
         if status_message is None and (discovered_count == 0 or offers_fetched == 0):
             status_message = "no_offers_processed"
@@ -479,6 +501,7 @@ def audit(
 
     console.print(f"[bold]Offres en base[/bold] {counts['total']}")
     console.print(f"[bold]Indisponibles[/bold] {counts['unavailable']}")
+    console.print(f"[bold]Disparues[/bold] {counts['missing']}")
 
     bucket_table = Table(title="Buckets")
     bucket_table.add_column("Bucket")
