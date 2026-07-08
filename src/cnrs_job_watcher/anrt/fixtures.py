@@ -12,6 +12,7 @@ EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECAS
 PHONE_RE = re.compile(
     r"(?:(?:\+|00)33[\s.-]?(?:\(0\)[\s.-]?)?|0)[1-9](?:[\s.-]?\d{2}){4}"
 )
+ANONYMIZED_EMAIL = "email-anonymise@example.invalid"
 
 
 @dataclass(frozen=True)
@@ -39,7 +40,7 @@ class AnrtFixtureAudit:
 
 
 def anonymize_html(html: str) -> str:
-    html = EMAIL_RE.sub("email-anonymise@example.invalid", html)
+    html = EMAIL_RE.sub(ANONYMIZED_EMAIL, html)
     html = PHONE_RE.sub("00 00 00 00 00", html)
     return html
 
@@ -101,4 +102,6 @@ def _fixture_detail_path(fixture_dir: Path, url: str) -> Path:
 
 
 def _contains_contact_leak(html: str) -> bool:
-    return EMAIL_RE.search(html) is not None or PHONE_RE.search(html) is not None
+    emails = {match.group(0).lower() for match in EMAIL_RE.finditer(html)}
+    non_placeholder_emails = emails - {ANONYMIZED_EMAIL}
+    return bool(non_placeholder_emails) or PHONE_RE.search(html) is not None

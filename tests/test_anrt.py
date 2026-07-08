@@ -55,6 +55,13 @@ ANRT_DETAIL_HTML = """
       <dt>Laboratoire</dt><dd>Laboratoire IA Appliquée</dd>
       <dt>Lieu</dt><dd>Paris</dd>
       <dt>Secteur</dt><dd>Industrie</dd>
+      <dt>Discipline</dt><dd>Informatique</dd>
+      <dt>École doctorale</dt><dd>ED Sciences Numériques</dd>
+      <dt>Partenaire recherché</dt><dd>Laboratoire académique identifié</dd>
+      <dt>Télétravail</dt><dd>Hybride possible</dd>
+      <dt>Financement</dt><dd>Demande CIFRE à déposer</dd>
+      <dt>Statut CIFRE</dt><dd>Montage en cours</dd>
+      <dt>Contact</dt><dd>email-anonymise@example.invalid</dd>
     </dl>
     <h2>Description</h2>
     <p>Le projet développe des modèles de deep learning et des réseaux de neurones.</p>
@@ -115,6 +122,14 @@ def test_parse_anrt_detail_maps_to_common_job_offer() -> None:
     assert offer.source_specific["anrt_kind"] == "entreprise"
     assert offer.source_specific["company_name"] == "Acme Research"
     assert offer.source_specific["laboratory_name"] == "Laboratoire IA Appliquée"
+    assert offer.source_specific["sector"] == "Industrie"
+    assert offer.source_specific["discipline"] == "Informatique"
+    assert offer.source_specific["doctoral_school"] == "ED Sciences Numériques"
+    assert offer.source_specific["partner_expected"] == "Laboratoire académique identifié"
+    assert offer.source_specific["remote_or_hybrid"] == "Hybride possible"
+    assert offer.source_specific["funding_status"] == "Demande CIFRE à déposer"
+    assert offer.source_specific["cifre_status"] == "Montage en cours"
+    assert offer.source_specific["contact_visible"] is True
     assert offer.reference == "CIFRE-2026-123"
     assert offer.contract_type == "CIFRE"
     assert offer.education_level == "BAC+5 / Master"
@@ -379,9 +394,12 @@ def test_anrt_fixture_anonymizer_masks_contact_details(tmp_path: Path) -> None:
     count = anonymize_fixture_tree(source, output)
 
     assert count == 1
-    assert "jane.doe@example.com" not in (output / "detail" / "offer.html").read_text(
-        encoding="utf-8"
-    )
+    anonymized_offer = (output / "detail" / "offer.html").read_text(encoding="utf-8")
+    assert "jane.doe@example.com" not in anonymized_offer
+    assert "email-anonymise@example.invalid" in anonymized_offer
+
+    audit = audit_anrt_fixture_tree(output)
+    assert audit.contact_leak_files == []
 
 
 def test_anrt_fixture_audit_accepts_complete_anonymized_fixture_tree() -> None:

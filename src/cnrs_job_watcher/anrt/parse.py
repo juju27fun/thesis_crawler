@@ -7,6 +7,12 @@ from bs4 import BeautifulSoup
 from cnrs_job_watcher.anrt.fetch import ANRT_BASE_URL, AnrtAuthenticationRequired, AnrtKind
 from cnrs_job_watcher.schemas import JobOffer
 
+CONTACT_RE = re.compile(
+    r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b"
+    r"|(?:(?:\+|00)33[\s.-]?(?:\(0\)[\s.-]?)?|0)[1-9](?:[\s.-]?\d{2}){4}",
+    re.IGNORECASE,
+)
+
 
 class AnrtParseError(ValueError):
     """Raised when an ANRT page cannot be parsed as the expected page type."""
@@ -102,7 +108,8 @@ def parse_anrt_offer_detail(html: str, url: str, kind: AnrtKind) -> JobOffer:
     }
     company = _field_text(soup, ["Entreprise", "Société", "Structure", "Organisation"])
     laboratory = _field_text(soup, ["Laboratoire", "Unité", "Equipe", "Équipe"])
-    sector = _field_text(soup, ["Secteur", "Domaine", "Discipline"])
+    sector = _field_text(soup, ["Secteur", "Domaine"])
+    discipline = _field_text(soup, ["Discipline", "Domaine scientifique"])
     deadline = _field_text(soup, ["Date limite", "Clôture", "Deadline"])
     if company:
         source_specific["company_name"] = company
@@ -110,8 +117,44 @@ def parse_anrt_offer_detail(html: str, url: str, kind: AnrtKind) -> JobOffer:
         source_specific["laboratory_name"] = laboratory
     if sector:
         source_specific["sector"] = sector
+    if discipline:
+        source_specific["discipline"] = discipline
     if deadline:
         source_specific["application_deadline"] = deadline
+    _add_source_specific_field(
+        source_specific,
+        "doctoral_school",
+        _field_text(soup, ["École doctorale", "Ecole doctorale", "Doctoral school"]),
+    )
+    _add_source_specific_field(
+        source_specific,
+        "partner_expected",
+        _field_text(
+            soup,
+            [
+                "Partenaire recherché",
+                "Partenaire recherche",
+                "Partenaire attendu",
+                "Partner expected",
+            ],
+        ),
+    )
+    _add_source_specific_field(
+        source_specific,
+        "remote_or_hybrid",
+        _field_text(soup, ["Télétravail", "Teletravail", "Remote", "Hybride", "Hybrid"]),
+    )
+    _add_source_specific_field(
+        source_specific,
+        "funding_status",
+        _field_text(soup, ["Financement", "Funding", "Statut financement"]),
+    )
+    _add_source_specific_field(
+        source_specific,
+        "cifre_status",
+        _field_text(soup, ["Statut CIFRE", "Convention CIFRE"]),
+    )
+    source_specific["contact_visible"] = bool(CONTACT_RE.search(raw_text))
 
     description = _section_text(soup, ["Description", "Sujet", "Projet", "Contexte"])
     skills = _section_text(soup, ["Profil", "Compétences", "Competences", "Candidat"])
@@ -254,6 +297,15 @@ def _field_text(soup: BeautifulSoup, labels: list[str]) -> str | None:
             if value:
                 return value
     return None
+
+
+def _add_source_specific_field(
+    source_specific: dict[str, object],
+    key: str,
+    value: str | None,
+) -> None:
+    if value:
+        source_specific[key] = value
 
 
 def _value_near_label(parent: object, label: str) -> str | None:

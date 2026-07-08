@@ -54,6 +54,14 @@ fixtures anonymisées issues du HTML réel.
   - laboratoire source ;
   - secteur ;
   - date limite.
+- Parsing ANRT enrichi dans `source_specific` :
+  - discipline ;
+  - école doctorale ;
+  - partenaire attendu ;
+  - télétravail/hybride ;
+  - statut financement ;
+  - statut convention CIFRE ;
+  - présence de contact visible.
 - Dataset `tests/fixtures/evaluation/anrt_offers.json` avec 21 cas synthétiques couvrant IA forte,
   génératif, ARN/protéines, bioinformatique, data adjacente et exclusions "IA" vagues ;
 - Fixtures HTML anonymisées `tests/fixtures/anrt`
@@ -76,6 +84,7 @@ fixtures anonymisées issues du HTML réel.
 - Un dossier fixture ANRT peut être audité avant commit pour repérer listes manquantes, détails
   absents et emails/téléphones restants.
 - La date limite ANRT reste un champ spécifique et ne pollue pas `published_at_text`.
+- Les champs CIFRE propres à ANRT restent dans `source_specific` et ne polluent pas le modèle commun.
 - Les offres disparues restent en historique mais ne sortent plus en shortlist/digest.
 - Les offres CIFRE sans signal IA/ML restent exclues.
 - Les offres CIFRE data adjacentes vont en `adjacent_review`, pas automatiquement en cible primaire.
