@@ -68,6 +68,9 @@ fixtures anonymisées issues du HTML réel.
   - statut financement ;
   - statut convention CIFRE ;
   - présence de contact visible.
+- Prompt LLM hybride multi-source : contexte ANRT/CIFRE, champs source spécifiques filtrés et
+  consigne explicite de distinguer IA/ML réelle, IA outil secondaire, data adjacente et mention IA
+  vague.
 - Dataset `tests/fixtures/evaluation/anrt_offers.json` avec 21 cas synthétiques couvrant IA forte,
   génératif, ARN/protéines, bioinformatique, data adjacente et exclusions "IA" vagues ;
 - Fixtures HTML anonymisées `tests/fixtures/anrt`
@@ -121,7 +124,7 @@ uv run cnrs-jobs anrt-anonymize-fixtures tests/fixtures/anrt /tmp/anrt_anonymize
 Résultats observés :
 
 - `ruff` vert ;
-- `pytest` vert, 49 tests ;
+- `pytest` vert, 50 tests ;
 - évaluation CNRS annotée : métriques 1.000 ;
 - évaluation ANRT synthétique 21 cas : métriques 1.000 ;
 - évaluation CNRS observée : métriques 1.000 ;

@@ -14,6 +14,20 @@ from cnrs_job_watcher.schemas import Accessibility, AiCategory, JobOffer, Target
 
 DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
 OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
+LLM_SOURCE_SPECIFIC_KEYS = {
+    "anrt_kind",
+    "company_name",
+    "laboratory_name",
+    "sector",
+    "discipline",
+    "doctoral_school",
+    "partner_expected",
+    "application_deadline",
+    "remote_or_hybrid",
+    "funding_status",
+    "cifre_status",
+    "contact_visible",
+}
 
 
 class LlmProvider(Protocol):
@@ -190,6 +204,9 @@ def _should_call_llm(ai_domain: AiCategory, target_type: str) -> bool:
 
 def _build_prompt(offer: JobOffer) -> str:
     fields = {
+        "source": offer.source,
+        "source_context": _source_context(offer),
+        "source_specific": _llm_source_specific(offer),
         "title": offer.title,
         "contract_type": offer.contract_type,
         "duration": offer.duration,
@@ -202,12 +219,40 @@ def _build_prompt(offer: JobOffer) -> str:
         "raw_text_excerpt": offer.raw_text[:4000],
     }
     return (
-        "Classifie cette offre publique CNRS pour une veille IA/ML BAC+5. "
+        "Classifie cette offre normalisée pour une veille thèses, CIFRE et CDD IA/ML BAC+5. "
         "Ne déduis jamais l'existence d'une offre hors des champs fournis. "
-        "Exclus les postdocs et offres à doctorat requis. "
+        "Le crawler/parser est la source de vérité; tu ne navigues pas et tu n'inventes "
+        "pas de page. "
+        "Exclus les postdocs, offres à doctorat requis, stages, CDI, communication ou "
+        "gestion IA non technique. "
+        "Pour source=anrt, traite CIFRE comme une thèse BAC+5 si aucun champ ne contredit cela, "
+        "mais vérifie que le sujet implique réellement des méthodes IA/ML et pas seulement "
+        "un usage vague du mot IA. "
+        "Distingue IA/ML centrale, IA outil secondaire, data adjacente et hors cible. "
         "Réponds uniquement avec le JSON strict demandé.\n\n"
         f"{json.dumps(fields, ensure_ascii=False)}"
     )
+
+
+def _source_context(offer: JobOffer) -> str:
+    if offer.source == "anrt":
+        kind = offer.source_specific.get("anrt_kind")
+        if kind == "entreprise":
+            return "ANRT/CIFRE côté entreprise"
+        if kind == "laboratoire":
+            return "ANRT/CIFRE côté laboratoire"
+        return "ANRT/CIFRE"
+    if offer.source == "cnrs":
+        return "CNRS emploi public"
+    return offer.source
+
+
+def _llm_source_specific(offer: JobOffer) -> dict[str, object]:
+    return {
+        key: value
+        for key, value in offer.source_specific.items()
+        if key in LLM_SOURCE_SPECIFIC_KEYS and value is not None
+    }
 
 
 def _extract_output_text(payload: Mapping[str, object]) -> str:

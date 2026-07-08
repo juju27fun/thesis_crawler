@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -8,7 +9,11 @@ from cnrs_job_watcher.classify import apply_classification
 from cnrs_job_watcher.evaluation import load_evaluation_cases, run_evaluation
 from cnrs_job_watcher.export import export_csv, export_markdown
 from cnrs_job_watcher.fetch import CnrsClient, parse_offer_sitemap_urls
-from cnrs_job_watcher.llm_classifier import classification_json_schema, classify_offer_hybrid
+from cnrs_job_watcher.llm_classifier import (
+    _build_prompt,
+    classification_json_schema,
+    classify_offer_hybrid,
+)
 from cnrs_job_watcher.parse import parse_list_page, parse_offer_detail
 from cnrs_job_watcher.profiles import SearchProfile, dedupe_offers, filter_offers_by_profile
 from cnrs_job_watcher.schemas import JobOffer
@@ -328,6 +333,41 @@ def test_llm_classifier_accepts_valid_structured_response() -> None:
     assert classified.target_bucket == "primary_target"
     assert classified.ai_relevance_score == 0.93
     assert classified.short_summary == "Thèse sur modèles génératifs."
+
+
+def test_llm_prompt_includes_anrt_cifre_context_without_raw_source_specific() -> None:
+    offer = JobOffer(
+        source="anrt",
+        source_specific={
+            "anrt_kind": "entreprise",
+            "company_name": "Acme Research",
+            "laboratory_name": "Laboratoire IA Appliquée",
+            "discipline": "Informatique",
+            "doctoral_school": "ED Sciences Numériques",
+            "funding_status": "Demande CIFRE à déposer",
+            "contact_visible": True,
+            "private_note": "ne doit pas partir au LLM",
+        },
+        url="https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/123",
+        reference="CIFRE-2026-123",
+        title="Thèse CIFRE deep learning",
+        contract_type="CIFRE",
+        education_level="BAC+5 / Master",
+        description="Deep learning, PyTorch et réseaux de neurones.",
+        raw_text="Machine learning et intelligence artificielle.",
+    )
+
+    prompt = _build_prompt(offer)
+    payload = json.loads(prompt.split("\n\n", 1)[1])
+
+    assert "source=anrt" in prompt
+    assert "ANRT/CIFRE côté entreprise" in prompt
+    assert payload["source"] == "anrt"
+    assert payload["source_context"] == "ANRT/CIFRE côté entreprise"
+    assert payload["source_specific"]["company_name"] == "Acme Research"
+    assert payload["source_specific"]["doctoral_school"] == "ED Sciences Numériques"
+    assert payload["source_specific"]["contact_visible"] is True
+    assert "private_note" not in payload["source_specific"]
 
 
 def test_llm_classifier_invalid_response_keeps_rules_decision_for_review() -> None:
