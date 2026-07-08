@@ -148,5 +148,6 @@ adjacents à relire, postdocs, stages/apprentissages/CDI et bruit administratif.
 `tests/fixtures/evaluation/observed_offers.json` ajoute 40 offres CNRS réellement crawlées le
 2026-07-06 et auto-étiquetées comme baseline de régression. Ensemble, ces jeux bloquent les
 régressions critiques et suivent précision/rappel sur les buckets cibles.
-`cnrs-jobs eval --source anrt` utilise un dataset synthétique ANRT/CIFRE couvrant sujets IA forts,
-offres biomédicales avec signaux ML dans le détail, data adjacente et CIFRE hors IA.
+`cnrs-jobs eval --source anrt` utilise un dataset synthétique ANRT/CIFRE de 21 cas couvrant sujets
+IA forts, offres biomédicales ARN/protéines avec signaux deep learning dans le détail, data
+adjacente et CIFRE hors IA.

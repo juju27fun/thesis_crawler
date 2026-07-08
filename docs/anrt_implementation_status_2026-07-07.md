@@ -14,7 +14,7 @@ multi-source. Le projet peut :
 - crawler un dossier fixture ANRT anonymisé avec le même pipeline que le réseau ;
 - suivre les liens de pagination HTML des listes ANRT avec une limite de sécurité ;
 - marquer les offres d'une source comme `missing` quand elles disparaissent d'un crawl complet ;
-- évaluer un dataset ANRT synthétique ;
+- évaluer un dataset ANRT synthétique de 21 cas ;
 - exporter une provenance lisible et des champs CIFRE spécifiques.
 
 Le crawl ANRT réel complet n'est pas encore prouvé, car il manque une session ANRT connectée et des
@@ -54,7 +54,8 @@ fixtures anonymisées issues du HTML réel.
   - laboratoire source ;
   - secteur ;
   - date limite.
-- Dataset `tests/fixtures/evaluation/anrt_offers.json`
+- Dataset `tests/fixtures/evaluation/anrt_offers.json` avec 21 cas synthétiques couvrant IA forte,
+  génératif, ARN/protéines, bioinformatique, data adjacente et exclusions "IA" vagues ;
 - Fixtures HTML anonymisées `tests/fixtures/anrt`
 
 ## Garde-fous validés
@@ -94,9 +95,9 @@ uv run cnrs-jobs anrt-anonymize-fixtures tests/fixtures/anrt /tmp/anrt_anonymize
 Résultats observés :
 
 - `ruff` vert ;
-- `pytest` vert, 34 tests ;
+- `pytest` vert, 41 tests ;
 - évaluation CNRS annotée : métriques 1.000 ;
-- évaluation ANRT synthétique : métriques 1.000 ;
+- évaluation ANRT synthétique 21 cas : métriques 1.000 ;
 - évaluation CNRS observée : métriques 1.000 ;
 - `anrt-session-check` sans session : code `2`, attendu ;
 - `--source all` sans session ANRT : CNRS traité, ANRT signalé `auth_required`.
@@ -122,6 +123,7 @@ Résultats observés :
   - `--anrt-kind entreprise` ;
   - `--anrt-kind laboratoire` ;
   - `--anrt-kind both`.
+- Ajouter un dataset d'évaluation ANRT réel anonymisé avec au moins 20 offres observées.
 - Valider un digest réel ANRT + CNRS.
 - Décider ensuite si Playwright devient nécessaire pour la session ou si `httpx` + cookies suffit.
 

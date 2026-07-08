@@ -10,15 +10,15 @@
       "source_specific": {
         "anrt_kind": "entreprise",
         "company_name": "Acme Research",
-        "laboratory_name": "Laboratoire IA Appliquée"
+        "laboratory_name": "Laboratoire IA Appliquee"
       },
       "url": "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/1001",
       "reference": "CIFRE-ANRT-ML-001",
-      "title": "Thèse CIFRE - Détection d'anomalies industrielles",
+      "title": "These CIFRE - Detection d'anomalies industrielles",
       "contract_type": "CIFRE",
       "duration": "36 mois",
       "education_level": "BAC+5 / Master",
-      "description": "Le projet développe des réseaux de neurones et des modèles de deep learning pour la détection d'anomalies.",
+      "description": "Le projet developpe des reseaux de neurones et des modeles de deep learning pour la detection d'anomalies.",
       "skills": "Python, PyTorch, machine learning",
       "raw_text": "CIFRE entreprise laboratoire apprentissage automatique."
     }
@@ -28,7 +28,7 @@
     "expected_bucket": "primary_target",
     "expected_ai_domain": "generative_ai",
     "expected_accessibility": "bac5_accessible",
-    "notes": "CIFRE laboratoire formulée autour des LLM.",
+    "notes": "CIFRE laboratoire formulee autour des LLM.",
     "offer": {
       "source": "anrt",
       "source_specific": {
@@ -37,13 +37,13 @@
       },
       "url": "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/1002",
       "reference": "CIFRE-ANRT-GENAI-001",
-      "title": "Sujet CIFRE sur assistants scientifiques et modèles de langage",
+      "title": "Sujet CIFRE sur assistants scientifiques et modeles de langage",
       "contract_type": "CIFRE",
       "duration": "36 mois",
       "education_level": "Master",
-      "description": "Étude de LLM, transformers et IA générative pour extraction de connaissances.",
+      "description": "Etude de LLM, transformers et IA generative pour extraction de connaissances.",
       "skills": "Python, NLP, transformer, LLM",
-      "raw_text": "Partenariat CIFRE IA générative."
+      "raw_text": "Partenariat CIFRE IA generative."
     }
   },
   {
@@ -51,7 +51,7 @@
     "expected_bucket": "primary_target",
     "expected_ai_domain": "ml_deep_learning",
     "expected_accessibility": "bac5_accessible",
-    "notes": "Offre biomédicale sans ML dans le titre mais signaux forts dans le détail.",
+    "notes": "Offre biomedicale sans ML dans le titre mais signaux forts dans le detail.",
     "offer": {
       "source": "anrt",
       "source_specific": {
@@ -60,12 +60,12 @@
       },
       "url": "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/1003",
       "reference": "CIFRE-ANRT-BIO-001",
-      "title": "Thèse CIFRE - Analyse de trajectoires cellulaires",
+      "title": "These CIFRE - Analyse de trajectoires cellulaires",
       "contract_type": "CIFRE",
       "duration": "36 mois",
       "education_level": "BAC+5 / Master",
-      "description": "Modèles prédictifs et apprentissage automatique sur séries temporelles biomédicales.",
-      "skills": "Python, JAX, optimisation bayésienne",
+      "description": "Modeles predictifs et apprentissage automatique sur series temporelles biomedicales.",
+      "skills": "Python, JAX, optimisation bayesienne",
       "raw_text": "Projet CIFRE en bioinformatique."
     }
   },
@@ -82,12 +82,12 @@
       },
       "url": "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/1004",
       "reference": "CIFRE-ANRT-DATA-001",
-      "title": "Thèse CIFRE - Plateforme de données expérimentales",
+      "title": "These CIFRE - Plateforme de donnees experimentales",
       "contract_type": "CIFRE",
       "duration": "36 mois",
       "education_level": "Master",
-      "description": "Structuration de données, data science et big data pour observatoire industriel.",
-      "skills": "Python, SQL, science des données",
+      "description": "Structuration de donnees, data science et big data pour observatoire industriel.",
+      "skills": "Python, SQL, science des donnees",
       "raw_text": "CIFRE data science."
     }
   },
@@ -96,7 +96,7 @@
     "expected_bucket": "exclude",
     "expected_ai_domain": "not_relevant",
     "expected_accessibility": "bac5_accessible",
-    "notes": "CIFRE thèse mais sujet matériaux sans IA/ML.",
+    "notes": "CIFRE these mais sujet materiaux sans IA/ML.",
     "offer": {
       "source": "anrt",
       "source_specific": {
@@ -104,13 +104,368 @@
       },
       "url": "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/1005",
       "reference": "CIFRE-ANRT-NONAI-001",
-      "title": "Thèse CIFRE - Durabilité de matériaux composites",
+      "title": "These CIFRE - Durabilite de materiaux composites",
       "contract_type": "CIFRE",
       "duration": "36 mois",
       "education_level": "BAC+5 / Master",
-      "description": "Caractérisation expérimentale, formulation de résines et essais mécaniques.",
-      "skills": "Matériaux, mécanique, expérimentation",
+      "description": "Caracterisation experimentale, formulation de resines et essais mecaniques.",
+      "skills": "Materiaux, mecanique, experimentation",
       "raw_text": "CIFRE laboratoire entreprise."
+    }
+  },
+  {
+    "reference": "CIFRE-ANRT-RNA-001",
+    "expected_bucket": "primary_target",
+    "expected_ai_domain": "ml_deep_learning",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "Cas critique ARN : titre biologique, deep learning dans le detail.",
+    "offer": {
+      "source": "anrt",
+      "source_specific": {
+        "anrt_kind": "laboratoire",
+        "laboratory_name": "Institut de biologie computationnelle"
+      },
+      "url": "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/1006",
+      "reference": "CIFRE-ANRT-RNA-001",
+      "title": "These CIFRE - Conception de molecules ARN therapeutiques",
+      "contract_type": "CIFRE",
+      "duration": "36 mois",
+      "education_level": "Master",
+      "description": "Le sujet utilise des architectures de deep learning et des representations latentes pour le RNA design.",
+      "skills": "Python, PyTorch, bioinformatique, ARN",
+      "raw_text": "CIFRE RNA therapeutique avec apprentissage profond."
+    }
+  },
+  {
+    "reference": "CIFRE-ANRT-PROTEIN-001",
+    "expected_bucket": "primary_target",
+    "expected_ai_domain": "ml_deep_learning",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "Cas critique proteines : prediction de structure et protein design.",
+    "offer": {
+      "source": "anrt",
+      "source_specific": {
+        "anrt_kind": "entreprise",
+        "company_name": "ProteinLab"
+      },
+      "url": "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/1007",
+      "reference": "CIFRE-ANRT-PROTEIN-001",
+      "title": "These CIFRE - Ingenierie de proteines pour enzymes industrielles",
+      "contract_type": "CIFRE",
+      "duration": "36 mois",
+      "education_level": "BAC+5 / Master",
+      "description": "La these porte sur le protein design, la prediction de structure et des neural networks pour generer des variantes enzymatiques.",
+      "skills": "Python, TensorFlow, proteines, structure prediction",
+      "raw_text": "Projet CIFRE protein design."
+    }
+  },
+  {
+    "reference": "CIFRE-ANRT-GNN-001",
+    "expected_bucket": "primary_target",
+    "expected_ai_domain": "ml_deep_learning",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "Chemoinformatique avec graph neural networks.",
+    "offer": {
+      "source": "anrt",
+      "source_specific": {
+        "anrt_kind": "entreprise",
+        "sector": "Sante"
+      },
+      "url": "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/1008",
+      "reference": "CIFRE-ANRT-GNN-001",
+      "title": "These CIFRE - Criblage virtuel de molecules",
+      "contract_type": "CIFRE",
+      "duration": "36 mois",
+      "education_level": "Master",
+      "description": "Developpement de graph neural networks et de geometric deep learning pour la chemoinformatique.",
+      "skills": "GNN, PyTorch, graph neural networks",
+      "raw_text": "CIFRE chemoinformatique."
+    }
+  },
+  {
+    "reference": "CIFRE-ANRT-VISION-001",
+    "expected_bucket": "primary_target",
+    "expected_ai_domain": "ml_deep_learning",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "Vision industrielle sans terme machine learning dans le titre.",
+    "offer": {
+      "source": "anrt",
+      "source_specific": {
+        "anrt_kind": "entreprise"
+      },
+      "url": "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/1009",
+      "reference": "CIFRE-ANRT-VISION-001",
+      "title": "These CIFRE - Controle qualite visuel en production",
+      "contract_type": "CIFRE",
+      "duration": "36 mois",
+      "education_level": "BAC+5",
+      "description": "Le coeur scientifique est la vision par ordinateur et le computer vision pour inspection automatique.",
+      "skills": "Python, images, deep learning",
+      "raw_text": "CIFRE vision industrielle."
+    }
+  },
+  {
+    "reference": "CIFRE-ANRT-RL-001",
+    "expected_bucket": "primary_target",
+    "expected_ai_domain": "ml_deep_learning",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "Optimisation avec apprentissage par renforcement.",
+    "offer": {
+      "source": "anrt",
+      "source_specific": {
+        "anrt_kind": "laboratoire"
+      },
+      "url": "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/1010",
+      "reference": "CIFRE-ANRT-RL-001",
+      "title": "These CIFRE - Ordonnancement robotique en entrepot",
+      "contract_type": "CIFRE",
+      "duration": "36 mois",
+      "education_level": "Master",
+      "description": "Le sujet etudie l'apprentissage par renforcement et le reinforcement learning pour planifier des flottes de robots.",
+      "skills": "Python, simulation, reinforcement learning",
+      "raw_text": "CIFRE robotique."
+    }
+  },
+  {
+    "reference": "CIFRE-ANRT-DIFFUSION-001",
+    "expected_bucket": "primary_target",
+    "expected_ai_domain": "generative_ai",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "Generatif par modeles de diffusion.",
+    "offer": {
+      "source": "anrt",
+      "source_specific": {
+        "anrt_kind": "entreprise"
+      },
+      "url": "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/1011",
+      "reference": "CIFRE-ANRT-DIFFUSION-001",
+      "title": "These CIFRE - Generation de designs industriels",
+      "contract_type": "CIFRE",
+      "duration": "36 mois",
+      "education_level": "BAC+5 / Master",
+      "description": "Modeles de diffusion et modeles generatifs pour proposer des formes sous contraintes physiques.",
+      "skills": "diffusion model, JAX, optimisation",
+      "raw_text": "CIFRE IA generative."
+    }
+  },
+  {
+    "reference": "CIFRE-ANRT-FOUNDATION-001",
+    "expected_bucket": "primary_target",
+    "expected_ai_domain": "ml_deep_learning",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "Foundation model et apprentissage auto-supervise pour imagerie scientifique.",
+    "offer": {
+      "source": "anrt",
+      "source_specific": {
+        "anrt_kind": "laboratoire"
+      },
+      "url": "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/1012",
+      "reference": "CIFRE-ANRT-FOUNDATION-001",
+      "title": "These CIFRE - Imagerie scientifique multimodale",
+      "contract_type": "CIFRE",
+      "duration": "36 mois",
+      "education_level": "Master",
+      "description": "Construction d'un foundation model avec apprentissage auto-supervise et embeddings multimodaux.",
+      "skills": "self-supervised learning, embedding, PyTorch",
+      "raw_text": "CIFRE imagerie multimodale."
+    }
+  },
+  {
+    "reference": "CIFRE-ANRT-MLOPS-001",
+    "expected_bucket": "primary_target",
+    "expected_ai_domain": "ml_deep_learning",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "MLOps central a une these CIFRE IA industrielle.",
+    "offer": {
+      "source": "anrt",
+      "source_specific": {
+        "anrt_kind": "entreprise"
+      },
+      "url": "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/1013",
+      "reference": "CIFRE-ANRT-MLOPS-001",
+      "title": "These CIFRE - Industrialisation de modeles predictifs",
+      "contract_type": "CIFRE",
+      "duration": "36 mois",
+      "education_level": "BAC+5",
+      "description": "Recherche sur MLOps, monitoring de modeles predictifs et detection de derive en production.",
+      "skills": "MLOps, Python, machine learning",
+      "raw_text": "CIFRE systemes IA."
+    }
+  },
+  {
+    "reference": "CIFRE-ANRT-TIMESERIES-001",
+    "expected_bucket": "adjacent_review",
+    "expected_ai_domain": "data_science_adjacent",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "Series temporelles sans methode apprenante explicite : revue manuelle.",
+    "offer": {
+      "source": "anrt",
+      "source_specific": {
+        "anrt_kind": "laboratoire"
+      },
+      "url": "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/1014",
+      "reference": "CIFRE-ANRT-TIMESERIES-001",
+      "title": "These CIFRE - Analyse de series temporelles industrielles",
+      "contract_type": "CIFRE",
+      "duration": "36 mois",
+      "education_level": "Master",
+      "description": "Analyse statistique de series temporelles et indicateurs pour maintenance.",
+      "skills": "Python, series temporelles, visualisation",
+      "raw_text": "CIFRE data industrielle."
+    }
+  },
+  {
+    "reference": "CIFRE-ANRT-DIGITALTWIN-001",
+    "expected_bucket": "adjacent_review",
+    "expected_ai_domain": "data_science_adjacent",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "Jumeau numerique sans ML explicite.",
+    "offer": {
+      "source": "anrt",
+      "source_specific": {
+        "anrt_kind": "entreprise"
+      },
+      "url": "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/1015",
+      "reference": "CIFRE-ANRT-DIGITALTWIN-001",
+      "title": "These CIFRE - Jumeau numerique pour procedes industriels",
+      "contract_type": "CIFRE",
+      "duration": "36 mois",
+      "education_level": "BAC+5 / Master",
+      "description": "Construction d'un jumeau numerique et modelisation physique pour aide a la decision.",
+      "skills": "Simulation, calcul scientifique, Python",
+      "raw_text": "CIFRE numerique industriel."
+    }
+  },
+  {
+    "reference": "CIFRE-ANRT-BIOINFO-ADJ-001",
+    "expected_bucket": "adjacent_review",
+    "expected_ai_domain": "data_science_adjacent",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "Bioinformatique/genomique sans signal ML fort.",
+    "offer": {
+      "source": "anrt",
+      "source_specific": {
+        "anrt_kind": "laboratoire"
+      },
+      "url": "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/1016",
+      "reference": "CIFRE-ANRT-BIOINFO-ADJ-001",
+      "title": "These CIFRE - Integration de donnees genomiques",
+      "contract_type": "CIFRE",
+      "duration": "36 mois",
+      "education_level": "Master",
+      "description": "Bioinformatique, genomique et analyse omiques pour caracteriser des cohortes.",
+      "skills": "R, Python, bioinformatique",
+      "raw_text": "CIFRE genomique."
+    }
+  },
+  {
+    "reference": "CIFRE-ANRT-NUMERIQUE-NEG-001",
+    "expected_bucket": "exclude",
+    "expected_ai_domain": "not_relevant",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "Transformation numerique sans composant IA.",
+    "offer": {
+      "source": "anrt",
+      "source_specific": {
+        "anrt_kind": "entreprise"
+      },
+      "url": "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/1017",
+      "reference": "CIFRE-ANRT-NUMERIQUE-NEG-001",
+      "title": "These CIFRE - Transformation numerique des processus metiers",
+      "contract_type": "CIFRE",
+      "duration": "36 mois",
+      "education_level": "Master",
+      "description": "Accompagnement de la transformation numerique et innovation numerique sans composant IA.",
+      "skills": "Gestion de projet, conduite du changement",
+      "raw_text": "CIFRE transformation numerique."
+    }
+  },
+  {
+    "reference": "CIFRE-ANRT-DATAENG-NEG-001",
+    "expected_bucket": "exclude",
+    "expected_ai_domain": "not_relevant",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "Data engineering explicitement sans apprentissage.",
+    "offer": {
+      "source": "anrt",
+      "source_specific": {
+        "anrt_kind": "entreprise"
+      },
+      "url": "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/1018",
+      "reference": "CIFRE-ANRT-DATAENG-NEG-001",
+      "title": "These CIFRE - Data engineering pour entrepot de donnees",
+      "contract_type": "CIFRE",
+      "duration": "36 mois",
+      "education_level": "BAC+5 / Master",
+      "description": "Architecture ETL et data engineering sans apprentissage automatique.",
+      "skills": "SQL, orchestration, entrepot de donnees",
+      "raw_text": "CIFRE infrastructure data."
+    }
+  },
+  {
+    "reference": "CIFRE-ANRT-STATS-NEG-001",
+    "expected_bucket": "exclude",
+    "expected_ai_domain": "not_relevant",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "Statistiques descriptives uniquement.",
+    "offer": {
+      "source": "anrt",
+      "source_specific": {
+        "anrt_kind": "laboratoire"
+      },
+      "url": "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/1019",
+      "reference": "CIFRE-ANRT-STATS-NEG-001",
+      "title": "These CIFRE - Tableaux de bord pour indicateurs qualite",
+      "contract_type": "CIFRE",
+      "duration": "36 mois",
+      "education_level": "Master",
+      "description": "Production de statistiques descriptives uniquement et indicateurs de suivi.",
+      "skills": "BI, reporting, statistiques descriptives",
+      "raw_text": "CIFRE reporting."
+    }
+  },
+  {
+    "reference": "CIFRE-ANRT-COMM-NEG-001",
+    "expected_bucket": "exclude",
+    "expected_ai_domain": "not_relevant",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "Usage institutionnel/marketing du mot IA.",
+    "offer": {
+      "source": "anrt",
+      "source_specific": {
+        "anrt_kind": "entreprise"
+      },
+      "url": "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/1020",
+      "reference": "CIFRE-ANRT-COMM-NEG-001",
+      "title": "These CIFRE - Acceptabilite sociale de l'intelligence artificielle",
+      "contract_type": "CIFRE",
+      "duration": "36 mois",
+      "education_level": "BAC+5 / Master",
+      "description": "Communication autour de l'IA, usage marketing du mot IA et coordination de programme IA.",
+      "skills": "Communication, sciences sociales, entretiens",
+      "raw_text": "CIFRE communication IA."
+    }
+  },
+  {
+    "reference": "CIFRE-ANRT-SOFTWARE-NEG-001",
+    "expected_bucket": "exclude",
+    "expected_ai_domain": "not_relevant",
+    "expected_accessibility": "bac5_accessible",
+    "notes": "Logiciel metier sans IA malgre vocabulaire numerique.",
+    "offer": {
+      "source": "anrt",
+      "source_specific": {
+        "anrt_kind": "entreprise"
+      },
+      "url": "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/1021",
+      "reference": "CIFRE-ANRT-SOFTWARE-NEG-001",
+      "title": "These CIFRE - Logiciel metier pour tracabilite industrielle",
+      "contract_type": "CIFRE",
+      "duration": "36 mois",
+      "education_level": "Master",
+      "description": "Conception d'un logiciel metier sans IA et sans composant IA pour tracer des lots.",
+      "skills": "Architecture logicielle, base de donnees",
+      "raw_text": "CIFRE logiciel."
     }
   }
 ]
