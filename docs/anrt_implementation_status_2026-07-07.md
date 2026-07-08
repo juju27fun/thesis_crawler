@@ -61,6 +61,8 @@ fixtures anonymisées issues du HTML réel.
 ## Garde-fous validés
 
 - Un run ANRT sans session sort en code `2` avec `ANRT auth requise`.
+- Un fichier session ANRT absent, non JSON, sans liste `cookies` ou sans cookie utilisable est
+  rejeté avant crawl avec une erreur d'authentification explicite.
 - Un run `--source all` continue CNRS si ANRT est déconnecté.
 - Les cookies/session restent hors Git :
   - `data/auth/`
@@ -98,7 +100,7 @@ uv run cnrs-jobs anrt-anonymize-fixtures tests/fixtures/anrt /tmp/anrt_anonymize
 Résultats observés :
 
 - `ruff` vert ;
-- `pytest` vert, 43 tests ;
+- `pytest` vert, 45 tests ;
 - évaluation CNRS annotée : métriques 1.000 ;
 - évaluation ANRT synthétique 21 cas : métriques 1.000 ;
 - évaluation CNRS observée : métriques 1.000 ;

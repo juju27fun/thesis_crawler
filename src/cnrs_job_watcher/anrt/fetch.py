@@ -44,7 +44,11 @@ class AnrtClient:
             headers={"User-Agent": "cnrs-job-watcher/0.1 (+local CIFRE monitoring)"},
         )
         if session_file:
-            self._load_session_file(session_file)
+            try:
+                self._load_session_file(session_file)
+            except Exception:
+                self.client.close()
+                raise
 
     def close(self) -> None:
         self.client.close()
@@ -102,18 +106,28 @@ class AnrtClient:
     def _load_session_file(self, session_file: Path) -> None:
         if not session_file.exists():
             raise AnrtAuthenticationRequired(f"ANRT session file not found: {session_file}")
-        data = json.loads(session_file.read_text(encoding="utf-8"))
-        cookies = data.get("cookies", data if isinstance(data, list) else [])
-        if not isinstance(cookies, list):
-            raise AnrtAuthenticationRequired("ANRT session file must contain a cookies list.")
+        try:
+            data = json.loads(session_file.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise AnrtAuthenticationRequired(
+                f"ANRT session file is not valid JSON: {session_file}"
+            ) from exc
+        cookies = _extract_session_cookies(data)
+        loaded_count = 0
         for cookie in cookies:
-            if not isinstance(cookie, dict) or "name" not in cookie or "value" not in cookie:
+            if not _is_usable_cookie(cookie):
                 continue
             self.client.cookies.set(
                 str(cookie["name"]),
                 str(cookie["value"]),
                 domain=_cookie_domain(cookie),
                 path=str(cookie.get("path") or "/"),
+            )
+            loaded_count += 1
+        if loaded_count == 0:
+            raise AnrtAuthenticationRequired(
+                "ANRT session file contains no usable cookies. "
+                "Expected a Playwright storage_state JSON or a JSON cookies list."
             )
 
     def _request(self, method: str, url: str, **kwargs: object) -> httpx.Response:
@@ -150,6 +164,23 @@ def is_logged_out_page(html: str, final_url: str = "") -> bool:
 def _cookie_domain(cookie: dict[str, Any]) -> str:
     domain = str(cookie.get("domain") or "offres-et-candidatures-cifre.anrt.asso.fr")
     return domain.lstrip(".")
+
+
+def _extract_session_cookies(data: Any) -> list[Any]:
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict) and isinstance(data.get("cookies"), list):
+        return data["cookies"]
+    raise AnrtAuthenticationRequired("ANRT session file must contain a cookies list.")
+
+
+def _is_usable_cookie(cookie: Any) -> bool:
+    return (
+        isinstance(cookie, dict)
+        and isinstance(cookie.get("name"), str)
+        and bool(cookie["name"])
+        and cookie.get("value") is not None
+    )
 
 
 def _is_retryable(exc: Exception) -> bool:

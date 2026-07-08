@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
 
-from cnrs_job_watcher.anrt.fetch import AnrtAuthenticationRequired, AnrtFixtureClient, AnrtKind
+from cnrs_job_watcher.anrt.fetch import (
+    AnrtAuthenticationRequired,
+    AnrtClient,
+    AnrtFixtureClient,
+    AnrtKind,
+)
 from cnrs_job_watcher.anrt.fixtures import anonymize_fixture_tree, anonymize_html
 from cnrs_job_watcher.anrt.parse import (
     parse_anrt_list_page,
@@ -118,6 +124,61 @@ def test_anrt_logged_out_page_is_rejected() -> None:
             "https://offres-et-candidatures-cifre.anrt.asso.fr/logout",
             AnrtKind.ENTREPRISE,
         )
+
+
+def test_anrt_client_rejects_missing_or_invalid_session_file(tmp_path: Path) -> None:
+    with pytest.raises(AnrtAuthenticationRequired, match="not found"):
+        AnrtClient(session_file=tmp_path / "missing.json")
+
+    invalid_json = tmp_path / "invalid.json"
+    invalid_json.write_text("{not-json", encoding="utf-8")
+    with pytest.raises(AnrtAuthenticationRequired, match="not valid JSON"):
+        AnrtClient(session_file=invalid_json)
+
+    invalid_shape = tmp_path / "invalid-shape.json"
+    invalid_shape.write_text(json.dumps({"storage": []}), encoding="utf-8")
+    with pytest.raises(AnrtAuthenticationRequired, match="cookies list"):
+        AnrtClient(session_file=invalid_shape)
+
+    empty_cookies = tmp_path / "empty.json"
+    empty_cookies.write_text(
+        json.dumps({"cookies": [{"name": ""}, {"value": "x"}]}),
+        encoding="utf-8",
+    )
+    with pytest.raises(AnrtAuthenticationRequired, match="no usable cookies"):
+        AnrtClient(session_file=empty_cookies)
+
+
+def test_anrt_client_loads_playwright_or_raw_cookie_session(tmp_path: Path) -> None:
+    playwright_state = tmp_path / "playwright-state.json"
+    playwright_state.write_text(
+        json.dumps(
+            {
+                "cookies": [
+                    {
+                        "name": "sessionid",
+                        "value": "abc",
+                        "domain": ".offres-et-candidatures-cifre.anrt.asso.fr",
+                        "path": "/",
+                    }
+                ],
+                "origins": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with AnrtClient(session_file=playwright_state) as client:
+        assert client.client.cookies.get("sessionid") == "abc"
+
+    raw_cookie_list = tmp_path / "cookies.json"
+    raw_cookie_list.write_text(
+        json.dumps([{"name": "sid", "value": "raw", "path": "/"}]),
+        encoding="utf-8",
+    )
+
+    with AnrtClient(session_file=raw_cookie_list) as client:
+        assert client.client.cookies.get("sid") == "raw"
 
 
 def test_anrt_cifre_offer_is_classified_as_primary_when_ai_ml_is_strong() -> None:
