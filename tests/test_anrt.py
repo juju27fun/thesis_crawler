@@ -529,3 +529,91 @@ def test_anrt_real_smoke_reports_auth_required_without_network(tmp_path: Path) -
     assert "- Statut : auth_required" in report_text
     assert "- Status run : auth_required" in report_text
     assert "missing-cookies.json" in report_text
+
+
+def test_anrt_mvp_audit_passes_with_complete_fixture_evidence(tmp_path: Path) -> None:
+    db = tmp_path / "anrt.sqlite"
+    digest = tmp_path / "anrt_digest.md"
+    smoke_report = tmp_path / "anrt_smoke.md"
+    mvp_report = tmp_path / "anrt_mvp.md"
+
+    smoke = CliRunner().invoke(
+        cli_module.app,
+        [
+            "anrt-real-smoke",
+            "--anrt-fixture-dir",
+            str(FIXTURES / "anrt"),
+            "--db",
+            str(db),
+            "--raw-dir",
+            str(tmp_path / "raw"),
+            "--report",
+            str(smoke_report),
+            "--digest-output",
+            str(digest),
+            "--limit-offers",
+            "2",
+            "--no-cache",
+        ],
+    )
+    assert smoke.exit_code == 0, smoke.output
+
+    result = CliRunner().invoke(
+        cli_module.app,
+        [
+            "anrt-mvp-audit",
+            "--db",
+            str(db),
+            "--raw-dir",
+            str(tmp_path / "raw"),
+            "--digest",
+            str(digest),
+            "--fixture-dir",
+            str(FIXTURES / "anrt"),
+            "--eval-dataset",
+            str(FIXTURES / "evaluation" / "anrt_offers.json"),
+            "--output",
+            str(mvp_report),
+            "--min-offers",
+            "2",
+            "--min-raw-list-files",
+            "0",
+            "--min-raw-detail-files",
+            "0",
+            "--min-eval-cases",
+            "20",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    report_text = mvp_report.read_text(encoding="utf-8")
+    assert "- Statut : ok" in report_text
+    assert "| both_origins_present | ok |" in report_text
+    assert "| evaluation_no_missed_targets | ok | 0 |" in report_text
+
+
+def test_anrt_mvp_audit_fails_when_evidence_is_missing(tmp_path: Path) -> None:
+    report = tmp_path / "missing_mvp.md"
+
+    result = CliRunner().invoke(
+        cli_module.app,
+        [
+            "anrt-mvp-audit",
+            "--db",
+            str(tmp_path / "missing.sqlite"),
+            "--raw-dir",
+            str(tmp_path / "raw"),
+            "--digest",
+            str(tmp_path / "missing_digest.md"),
+            "--output",
+            str(report),
+            "--min-offers",
+            "2",
+        ],
+    )
+
+    assert result.exit_code == 1
+    report_text = report.read_text(encoding="utf-8")
+    assert "- Statut : incomplet" in report_text
+    assert "| db_exists | manquant |" in report_text
+    assert "| evaluation_dataset_provided | manquant | eval_dataset missing |" in report_text

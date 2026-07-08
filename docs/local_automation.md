@@ -59,6 +59,23 @@ Le dossier `data/validation/` reste hors Git. Le rapport doit prouver au minimum
 pages liste parcourues, URLs découvertes, offres fetchées, erreurs détail, buckets et chemin du
 digest produit.
 
+Quand des fixtures anonymisées réelles et un dataset d'évaluation réel sont prêts, vérifier le MVP
+ANRT avec :
+
+```bash
+uv run cnrs-jobs anrt-mvp-audit \
+  --db data/validation/anrt_real_smoke.sqlite \
+  --raw-dir data/raw \
+  --digest data/validation/anrt_real_digest.md \
+  --fixture-dir tests/fixtures/anrt_real_anonymized \
+  --eval-dataset tests/fixtures/evaluation/anrt_real_offers.json \
+  --output data/validation/anrt_mvp_audit.md
+```
+
+Cette commande est volontairement stricte : sans 20 offres fetchées, sans origine entreprise et
+laboratoire, sans digest, sans snapshots, sans fixtures anonymisées et sans dataset d'évaluation,
+elle sort en erreur et liste les gates manquants.
+
 Une fois la session valide, le mode multi-source peut être lancé ainsi :
 
 ```bash

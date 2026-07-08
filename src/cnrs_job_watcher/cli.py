@@ -645,6 +645,82 @@ def anrt_real_smoke(
         raise typer.Exit(code=1)
 
 
+@app.command("anrt-mvp-audit")
+def anrt_mvp_audit(
+    db: Path = typer.Option(
+        Path("data/validation/anrt_real_smoke.sqlite"),
+        help="Base SQLite produite par le smoke/crawl ANRT réel.",
+    ),
+    raw_dir: Path = typer.Option(Path("data/raw"), help="Dossier de snapshots HTML."),
+    digest: Path = typer.Option(
+        Path("data/validation/anrt_real_digest.md"),
+        help="Digest ANRT produit par le smoke réel.",
+    ),
+    fixture_dir: Path | None = typer.Option(
+        None,
+        help="Dossier de fixtures ANRT réelles anonymisées à auditer.",
+    ),
+    eval_dataset: Path | None = typer.Option(
+        None,
+        help="Dataset d'évaluation ANRT réel anonymisé à vérifier.",
+    ),
+    output: Path = typer.Option(
+        Path("data/validation/anrt_mvp_audit.md"),
+        help="Rapport Markdown d'audit MVP à écrire.",
+    ),
+    min_offers: int = typer.Option(20, min=1, help="Minimum d'offres ANRT réelles attendues."),
+    min_raw_list_files: int = typer.Option(2, min=0, help="Minimum de snapshots liste attendus."),
+    min_raw_detail_files: int = typer.Option(
+        20,
+        min=0,
+        help="Minimum de snapshots détail attendus.",
+    ),
+    min_eval_cases: int = typer.Option(
+        20,
+        min=1,
+        help="Minimum de cas dans le dataset d'évaluation ANRT réel.",
+    ),
+    min_bucket_accuracy: float = typer.Option(
+        0.9,
+        min=0,
+        max=1,
+        help="Seuil minimal d'accuracy bucket pour l'évaluation.",
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Sortie JSON machine-readable."),
+) -> None:
+    """Audite si les preuves locales suffisent pour déclarer le MVP ANRT atteint."""
+    payload = _build_anrt_mvp_audit_payload(
+        db=db,
+        raw_dir=raw_dir,
+        digest=digest,
+        fixture_dir=fixture_dir,
+        eval_dataset=eval_dataset,
+        min_offers=min_offers,
+        min_raw_list_files=min_raw_list_files,
+        min_raw_detail_files=min_raw_detail_files,
+        min_eval_cases=min_eval_cases,
+        min_bucket_accuracy=min_bucket_accuracy,
+    )
+    _write_anrt_mvp_audit_report(output, payload)
+    if json_output:
+        console.print(json.dumps(payload, ensure_ascii=False, default=str))
+    else:
+        table = Table(title="ANRT MVP audit")
+        table.add_column("Gate")
+        table.add_column("Statut")
+        table.add_column("Détail")
+        for gate in payload["gates"]:
+            table.add_row(
+                str(gate["name"]),
+                "ok" if gate["passed"] else "manquant",
+                str(gate["detail"]),
+            )
+        console.print(table)
+        console.print(f"[bold]Rapport[/bold] {output}")
+    if not payload["passed"]:
+        raise typer.Exit(code=1)
+
+
 @app.command("anrt-anonymize-fixtures")
 def anrt_anonymize_fixtures(
     input_dir: Path = typer.Argument(..., help="Dossier de snapshots ANRT HTML source."),
@@ -1050,6 +1126,250 @@ def _write_anrt_smoke_report(
                 f"- Fuites contact : {len(fixture_audit.get('contact_leak_files', []))}",
             ]
         )
+    output.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _build_anrt_mvp_audit_payload(
+    *,
+    db: Path,
+    raw_dir: Path,
+    digest: Path,
+    fixture_dir: Path | None,
+    eval_dataset: Path | None,
+    min_offers: int,
+    min_raw_list_files: int,
+    min_raw_detail_files: int,
+    min_eval_cases: int,
+    min_bucket_accuracy: float,
+) -> dict[str, object]:
+    db_exists = db.exists()
+    latest_anrt_run: dict[str, object] | None = None
+    counts: dict[str, object] = {
+        "total": 0,
+        "by_bucket": {},
+    }
+    kind_counts: dict[str, int] = {}
+    if db_exists:
+        connection = connect(db)
+        counts = audit_counts(connection, source="anrt")
+        latest_anrt_run = _latest_anrt_run(connection)
+        kind_counts = _anrt_kind_counts(connection)
+
+    list_files = len(list((raw_dir / "anrt" / "list").glob("*.html")))
+    detail_files = len(list((raw_dir / "anrt" / "detail").glob("*.html")))
+    by_bucket = dict(counts.get("by_bucket") or {})
+    latest_status = latest_anrt_run.get("status_message") if latest_anrt_run else None
+    discovered = int(latest_anrt_run.get("offers_discovered") or 0) if latest_anrt_run else 0
+    fetched = int(latest_anrt_run.get("offers_fetched") or 0) if latest_anrt_run else 0
+    errors = int(latest_anrt_run.get("errors_count") or 0) if latest_anrt_run else 0
+    gates = [
+        _mvp_gate("db_exists", db_exists, str(db)),
+        _mvp_gate(
+            "latest_anrt_run_finished",
+            bool(latest_anrt_run and latest_anrt_run.get("finished_at")),
+            f"run={latest_anrt_run.get('id') if latest_anrt_run else 'n/a'}",
+        ),
+        _mvp_gate(
+            "latest_anrt_run_ok",
+            bool(latest_anrt_run and latest_status in {None, "", "ok"} and errors == 0),
+            f"status={latest_status or 'ok'}, errors={errors}",
+        ),
+        _mvp_gate(
+            "discovered_minimum",
+            discovered >= min_offers,
+            f"{discovered}/{min_offers}",
+        ),
+        _mvp_gate("fetched_minimum", fetched >= min_offers, f"{fetched}/{min_offers}"),
+        _mvp_gate(
+            "both_origins_present",
+            kind_counts.get("entreprise", 0) > 0 and kind_counts.get("laboratoire", 0) > 0,
+            json.dumps(kind_counts, ensure_ascii=False, sort_keys=True),
+        ),
+        _mvp_gate(
+            "has_primary_target",
+            int(by_bucket.get("primary_target") or 0) > 0,
+            json.dumps(by_bucket, ensure_ascii=False, sort_keys=True),
+        ),
+        _mvp_gate(
+            "digest_exists",
+            digest.exists() and digest.stat().st_size > 0,
+            str(digest),
+        ),
+        _mvp_gate(
+            "raw_list_snapshots",
+            list_files >= min_raw_list_files,
+            f"{list_files}/{min_raw_list_files}",
+        ),
+        _mvp_gate(
+            "raw_detail_snapshots",
+            detail_files >= min_raw_detail_files,
+            f"{detail_files}/{min_raw_detail_files}",
+        ),
+    ]
+    fixture_summary = _anrt_fixture_gate_summary(fixture_dir, min_offers=min_offers)
+    gates.extend(fixture_summary["gates"])
+    evaluation_summary = _anrt_evaluation_gate_summary(
+        eval_dataset,
+        min_eval_cases=min_eval_cases,
+        min_bucket_accuracy=min_bucket_accuracy,
+    )
+    gates.extend(evaluation_summary["gates"])
+    return {
+        "passed": all(bool(gate["passed"]) for gate in gates),
+        "db": str(db),
+        "raw_dir": str(raw_dir),
+        "digest": str(digest),
+        "fixture_dir": str(fixture_dir) if fixture_dir else None,
+        "eval_dataset": str(eval_dataset) if eval_dataset else None,
+        "latest_anrt_run": latest_anrt_run,
+        "counts": counts,
+        "kind_counts": kind_counts,
+        "raw_files": {"list": list_files, "detail": detail_files},
+        "fixture_audit": fixture_summary["audit"],
+        "evaluation": evaluation_summary["summary"],
+        "gates": gates,
+    }
+
+
+def _mvp_gate(name: str, passed: bool, detail: str) -> dict[str, object]:
+    return {"name": name, "passed": passed, "detail": detail}
+
+
+def _latest_anrt_run(connection: object) -> dict[str, object] | None:
+    row = connection.execute(
+        """
+        SELECT *
+        FROM runs
+        WHERE source = 'anrt'
+        ORDER BY started_at DESC, id DESC
+        LIMIT 1
+        """
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def _anrt_kind_counts(connection: object) -> dict[str, int]:
+    rows = connection.execute(
+        """
+        SELECT source_specific
+        FROM offers
+        WHERE source = 'anrt'
+          AND unavailable = 0
+          AND last_seen_status != 'missing'
+        """
+    ).fetchall()
+    counts: dict[str, int] = {}
+    for row in rows:
+        try:
+            data = json.loads(row["source_specific"] or "{}")
+        except json.JSONDecodeError:
+            continue
+        kind = data.get("anrt_kind")
+        if isinstance(kind, str) and kind:
+            counts[kind] = counts.get(kind, 0) + 1
+    return counts
+
+
+def _anrt_fixture_gate_summary(
+    fixture_dir: Path | None,
+    *,
+    min_offers: int,
+) -> dict[str, object]:
+    if fixture_dir is None:
+        return {
+            "audit": None,
+            "gates": [
+                _mvp_gate("anonymized_fixtures_provided", False, "fixture_dir missing"),
+            ],
+        }
+    if not fixture_dir.exists():
+        return {
+            "audit": None,
+            "gates": [
+                _mvp_gate("anonymized_fixtures_provided", False, str(fixture_dir)),
+            ],
+        }
+    audit = audit_anrt_fixture_tree(fixture_dir)
+    return {
+        "audit": audit.to_dict(),
+        "gates": [
+            _mvp_gate("anonymized_fixtures_ok", audit.ok, str(fixture_dir)),
+            _mvp_gate(
+                "anonymized_fixture_detail_minimum",
+                audit.detail_files >= min_offers,
+                f"{audit.detail_files}/{min_offers}",
+            ),
+        ],
+    }
+
+
+def _anrt_evaluation_gate_summary(
+    eval_dataset: Path | None,
+    *,
+    min_eval_cases: int,
+    min_bucket_accuracy: float,
+) -> dict[str, object]:
+    if eval_dataset is None:
+        return {
+            "summary": None,
+            "gates": [_mvp_gate("evaluation_dataset_provided", False, "eval_dataset missing")],
+        }
+    if not eval_dataset.exists():
+        return {
+            "summary": None,
+            "gates": [_mvp_gate("evaluation_dataset_provided", False, str(eval_dataset))],
+        }
+    summary = run_evaluation(load_evaluation_cases(eval_dataset))
+    summary_payload = summary.model_dump(mode="json", exclude={"results"})
+    return {
+        "summary": summary_payload,
+        "gates": [
+            _mvp_gate(
+                "evaluation_case_minimum",
+                summary.total >= min_eval_cases,
+                f"{summary.total}/{min_eval_cases}",
+            ),
+            _mvp_gate(
+                "evaluation_bucket_accuracy",
+                summary.bucket_accuracy >= min_bucket_accuracy,
+                f"{summary.bucket_accuracy:.3f}/{min_bucket_accuracy:.3f}",
+            ),
+            _mvp_gate(
+                "evaluation_no_false_targets",
+                summary.false_targets == 0,
+                str(summary.false_targets),
+            ),
+            _mvp_gate(
+                "evaluation_no_missed_targets",
+                summary.missed_targets == 0,
+                str(summary.missed_targets),
+            ),
+        ],
+    }
+
+
+def _write_anrt_mvp_audit_report(output: Path, payload: dict[str, object]) -> None:
+    output.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "# Audit MVP ANRT/CIFRE",
+        "",
+        f"- Date : {datetime.now(UTC).isoformat()}",
+        f"- Statut : {'ok' if payload['passed'] else 'incomplet'}",
+        f"- Base SQLite : {payload['db']}",
+        f"- Raw dir : {payload['raw_dir']}",
+        f"- Digest : {payload['digest']}",
+        f"- Fixture dir : {payload['fixture_dir'] or 'n/a'}",
+        f"- Dataset évaluation : {payload['eval_dataset'] or 'n/a'}",
+        "",
+        "## Gates",
+        "",
+        "| Gate | Statut | Détail |",
+        "| --- | --- | --- |",
+    ]
+    for gate in payload["gates"]:
+        status = "ok" if gate["passed"] else "manquant"
+        detail = str(gate["detail"]).replace("|", "\\|")
+        lines.append(f"| {gate['name']} | {status} | {detail} |")
     output.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
