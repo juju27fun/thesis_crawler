@@ -8,8 +8,24 @@ from cnrs_job_watcher.anrt.fetch import ANRT_BASE_URL, AnrtAuthenticationRequire
 from cnrs_job_watcher.schemas import JobOffer
 
 
+class AnrtParseError(ValueError):
+    """Raised when an ANRT page cannot be parsed as the expected page type."""
+
+
+class AnrtOfferUnavailable(AnrtParseError):
+    """Raised when an ANRT detail page says the offer is unavailable."""
+
+
+class AnrtServerErrorPage(AnrtParseError):
+    """Raised when ANRT returns an error page instead of a list/detail page."""
+
+
+class AnrtUnexpectedPage(AnrtParseError):
+    """Raised when an ANRT page is authenticated but not an expected offer page."""
+
+
 def parse_anrt_list_page(html: str, kind: AnrtKind) -> list[str]:
-    _ensure_not_logged_out(html)
+    _ensure_expected_page_state(html)
     soup = BeautifulSoup(html, "html.parser")
     urls: list[str] = []
     seen: set[str] = set()
@@ -27,7 +43,7 @@ def parse_anrt_list_page(html: str, kind: AnrtKind) -> list[str]:
 
 
 def parse_anrt_pagination_urls(html: str) -> list[str]:
-    _ensure_not_logged_out(html)
+    _ensure_expected_page_state(html)
     soup = BeautifulSoup(html, "html.parser")
     urls: list[str] = []
     seen: set[str] = set()
@@ -46,9 +62,11 @@ def parse_anrt_pagination_urls(html: str) -> list[str]:
 
 def parse_anrt_result_count(html: str) -> int | None:
     """Extract an optional UI count from an ANRT list page."""
-    _ensure_not_logged_out(html)
+    _ensure_expected_page_state(html)
     soup = BeautifulSoup(html, "html.parser")
     text = soup.get_text(" ", strip=True).lower()
+    if "aucune offre" in text or "aucun résultat" in text or "aucun resultat" in text:
+        return 0
     patterns = [
         r"(\d+)\s+offres?\s+(?:trouvées?|disponibles?|publiées?|cifre)",
         r"(\d+)\s+résultats?",
@@ -62,7 +80,7 @@ def parse_anrt_result_count(html: str) -> int | None:
 
 
 def parse_anrt_offer_detail(html: str, url: str, kind: AnrtKind) -> JobOffer:
-    _ensure_not_logged_out(html)
+    _ensure_expected_page_state(html)
     soup = BeautifulSoup(html, "html.parser")
     raw_text = soup.get_text("\n", strip=True)
 
@@ -77,7 +95,7 @@ def parse_anrt_offer_detail(html: str, url: str, kind: AnrtKind) -> JobOffer:
         ],
     )
     if not title:
-        raise ValueError("ANRT offer title not found")
+        raise AnrtUnexpectedPage("ANRT offer title not found on authenticated page.")
 
     source_specific = {
         "anrt_kind": kind.value,
@@ -126,10 +144,44 @@ def parse_anrt_offer_detail(html: str, url: str, kind: AnrtKind) -> JobOffer:
     )
 
 
-def _ensure_not_logged_out(html: str) -> None:
+def _ensure_expected_page_state(html: str) -> None:
     text = html.lower()
     if "déconnexion" in text or "deconnexion" in text or "merci de votre visite" in text:
         raise AnrtAuthenticationRequired("ANRT page is logged out.")
+    if _looks_like_server_error(text):
+        raise AnrtServerErrorPage("ANRT server error page returned instead of offer content.")
+    if _looks_like_unavailable_offer(text):
+        raise AnrtOfferUnavailable("ANRT offer is unavailable or expired.")
+
+
+def _looks_like_server_error(text: str) -> bool:
+    return any(
+        term in text
+        for term in [
+            "erreur serveur",
+            "erreur interne",
+            "internal server error",
+            "server error",
+            "http 500",
+            "500 internal",
+        ]
+    )
+
+
+def _looks_like_unavailable_offer(text: str) -> bool:
+    return any(
+        term in text
+        for term in [
+            "offre indisponible",
+            "offre expirée",
+            "offre expiree",
+            "offre introuvable",
+            "offre n'est plus disponible",
+            "offre nest plus disponible",
+            "offre demandée n'est plus disponible",
+            "offre demandee n'est plus disponible",
+        ]
+    )
 
 
 def _looks_like_offer_href(href: str) -> bool:

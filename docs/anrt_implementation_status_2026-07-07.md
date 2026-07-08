@@ -69,6 +69,8 @@ fixtures anonymisées issues du HTML réel.
   - `data/anrt_session/`
   - `playwright/.auth/`
 - Une page ANRT logout/déconnexion n'est pas parsée comme une offre.
+- Une page détail ANRT indisponible, une page erreur serveur et une page authentifiée non-offre
+  produisent des erreurs parser explicites.
 - La date limite ANRT reste un champ spécifique et ne pollue pas `published_at_text`.
 - Les offres disparues restent en historique mais ne sortent plus en shortlist/digest.
 - Les offres CIFRE sans signal IA/ML restent exclues.
@@ -100,7 +102,7 @@ uv run cnrs-jobs anrt-anonymize-fixtures tests/fixtures/anrt /tmp/anrt_anonymize
 Résultats observés :
 
 - `ruff` vert ;
-- `pytest` vert, 45 tests ;
+- `pytest` vert, 47 tests ;
 - évaluation CNRS annotée : métriques 1.000 ;
 - évaluation ANRT synthétique 21 cas : métriques 1.000 ;
 - évaluation CNRS observée : métriques 1.000 ;

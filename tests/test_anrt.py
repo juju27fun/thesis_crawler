@@ -13,6 +13,9 @@ from cnrs_job_watcher.anrt.fetch import (
 )
 from cnrs_job_watcher.anrt.fixtures import anonymize_fixture_tree, anonymize_html
 from cnrs_job_watcher.anrt.parse import (
+    AnrtOfferUnavailable,
+    AnrtServerErrorPage,
+    AnrtUnexpectedPage,
     parse_anrt_list_page,
     parse_anrt_offer_detail,
     parse_anrt_pagination_urls,
@@ -93,6 +96,7 @@ def test_parse_anrt_pagination_urls_extracts_next_pages() -> None:
 
 def test_parse_anrt_result_count_extracts_optional_ui_total() -> None:
     assert parse_anrt_result_count(ANRT_LIST_HTML) == 2
+    assert parse_anrt_result_count("<html><body>Aucune offre disponible</body></html>") == 0
     assert parse_anrt_result_count("<html><body>Aucun compteur</body></html>") is None
 
 
@@ -122,6 +126,31 @@ def test_anrt_logged_out_page_is_rejected() -> None:
         parse_anrt_offer_detail(
             ANRT_LOGGED_OUT_HTML,
             "https://offres-et-candidatures-cifre.anrt.asso.fr/logout",
+            AnrtKind.ENTREPRISE,
+        )
+
+
+def test_anrt_parser_rejects_unavailable_offer_and_server_error_pages() -> None:
+    unavailable_html = "<html><body><h1>Offre indisponible</h1></body></html>"
+    with pytest.raises(AnrtOfferUnavailable, match="unavailable"):
+        parse_anrt_offer_detail(
+            unavailable_html,
+            "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/999",
+            AnrtKind.ENTREPRISE,
+        )
+
+    server_error_html = "<html><body><h1>Erreur serveur</h1><p>HTTP 500</p></body></html>"
+    with pytest.raises(AnrtServerErrorPage, match="server error"):
+        parse_anrt_list_page(server_error_html, AnrtKind.LABORATOIRE)
+
+
+def test_anrt_parser_rejects_authenticated_non_offer_detail_page() -> None:
+    non_offer_html = "<html><body><main>Tableau de bord candidat</main></body></html>"
+
+    with pytest.raises(AnrtUnexpectedPage, match="title not found"):
+        parse_anrt_offer_detail(
+            non_offer_html,
+            "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/tableau-de-bord",
             AnrtKind.ENTREPRISE,
         )
 
