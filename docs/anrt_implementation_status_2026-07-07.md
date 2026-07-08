@@ -35,6 +35,7 @@ fixtures anonymisées issues du HTML réel.
 - `cnrs-jobs anrt-real-smoke`
 - `cnrs-jobs anrt-real-smoke --anrt-fixture-dir tests/fixtures/anrt`
 - `cnrs-jobs anrt-mvp-audit`
+- `cnrs-jobs anrt-export-eval-seed`
 - `cnrs-jobs anrt-anonymize-fixtures`
 - `cnrs-jobs eval --source anrt`
 - Module `cnrs_job_watcher.anrt.fetch`
@@ -110,6 +111,8 @@ fixtures anonymisées issues du HTML réel.
 - `anrt-mvp-audit` vérifie les preuves locales du MVP : run ANRT fini, erreurs nulles, minimum
   d'offres, origines entreprise/laboratoire, cible primaire, digest, snapshots, fixtures anonymisées
   et dataset d'évaluation.
+- `anrt-export-eval-seed` génère depuis SQLite un dataset ANRT local annotable, compatible avec
+  `cnrs-jobs eval`, en masquant emails/téléphones évidents.
 - Les crawls ANRT stockent dans `runs.pages_fetched` le nombre réel de pages liste parcourues.
 
 ## Validations lancées
@@ -123,6 +126,7 @@ uv run cnrs-jobs eval --dataset tests/fixtures/evaluation/observed_offers.json
 uv run cnrs-jobs anrt-login --help
 uv run cnrs-jobs anrt-session-check --raw-dir /tmp/anrt_session_check_raw --no-cache
 uv run cnrs-jobs anrt-real-smoke --anrt-fixture-dir tests/fixtures/anrt --db /tmp/anrt_smoke.sqlite --raw-dir /tmp/anrt_smoke_raw --report /tmp/anrt_smoke.md --digest-output /tmp/anrt_smoke_digest.md --no-cache
+uv run cnrs-jobs anrt-export-eval-seed --db /tmp/anrt_smoke.sqlite --output /tmp/anrt_eval_seed.json --limit 2
 uv run cnrs-jobs anrt-mvp-audit --db /tmp/anrt_smoke.sqlite --raw-dir /tmp/anrt_smoke_raw --digest /tmp/anrt_smoke_digest.md --fixture-dir tests/fixtures/anrt --eval-dataset tests/fixtures/evaluation/anrt_offers.json --output /tmp/anrt_mvp.md --min-offers 2 --min-raw-list-files 0 --min-raw-detail-files 0
 uv run cnrs-jobs crawl --source all --limit-offers 2 --db /tmp/source_all.sqlite --raw-dir /tmp/source_all_raw --no-cache
 uv run cnrs-jobs audit --db /tmp/source_all.sqlite --json
@@ -138,13 +142,14 @@ uv run cnrs-jobs anrt-anonymize-fixtures tests/fixtures/anrt /tmp/anrt_anonymize
 Résultats observés :
 
 - `ruff` vert ;
-- `pytest` vert, 55 tests ;
+- `pytest` vert, 56 tests ;
 - évaluation CNRS annotée : métriques 1.000 ;
 - évaluation ANRT synthétique 21 cas : métriques 1.000 ;
 - évaluation CNRS observée : métriques 1.000 ;
 - `anrt-login --help` expose la commande de création de session locale ;
 - `anrt-session-check` sans session : code `2`, attendu ;
 - `anrt-real-smoke` fixture : rapport `ok`, 2 URLs découvertes, 2 offres fetchées, digest produit ;
+- `anrt-export-eval-seed` fixture : dataset JSON compatible avec `load_evaluation_cases` ;
 - `anrt-mvp-audit` fixture : gates OK avec seuil `--min-offers 2` et dataset ANRT synthétique ;
 - `--source all` sans session ANRT : CNRS traité, ANRT signalé `auth_required`.
 - mode fixture ANRT : 2 offres traitées, 0 erreur, buckets `primary_target` et `adjacent_review`.
@@ -193,6 +198,10 @@ uv run cnrs-jobs anrt-real-smoke \
   --report data/validation/anrt_real_smoke.md \
   --digest-output data/validation/anrt_real_digest.md \
   --no-cache
+uv run cnrs-jobs anrt-export-eval-seed \
+  --db data/validation/anrt_real_smoke.sqlite \
+  --output data/validation/anrt_eval_seed.json \
+  --limit 20
 uv run cnrs-jobs anrt-mvp-audit \
   --db data/validation/anrt_real_smoke.sqlite \
   --raw-dir data/raw \

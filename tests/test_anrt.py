@@ -28,6 +28,7 @@ from cnrs_job_watcher.anrt.parse import (
     parse_anrt_result_count,
 )
 from cnrs_job_watcher.classify import apply_classification
+from cnrs_job_watcher.evaluation import load_evaluation_cases, run_evaluation
 from cnrs_job_watcher.sources import AnrtSourceAdapter, source_definition
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -617,3 +618,51 @@ def test_anrt_mvp_audit_fails_when_evidence_is_missing(tmp_path: Path) -> None:
     assert "- Statut : incomplet" in report_text
     assert "| db_exists | manquant |" in report_text
     assert "| evaluation_dataset_provided | manquant | eval_dataset missing |" in report_text
+
+
+def test_anrt_export_eval_seed_from_fixture_smoke_db(tmp_path: Path) -> None:
+    db = tmp_path / "anrt.sqlite"
+    seed = tmp_path / "anrt_seed.json"
+
+    smoke = CliRunner().invoke(
+        cli_module.app,
+        [
+            "anrt-real-smoke",
+            "--anrt-fixture-dir",
+            str(FIXTURES / "anrt"),
+            "--db",
+            str(db),
+            "--raw-dir",
+            str(tmp_path / "raw"),
+            "--report",
+            str(tmp_path / "smoke.md"),
+            "--digest-output",
+            str(tmp_path / "digest.md"),
+            "--limit-offers",
+            "2",
+            "--no-cache",
+        ],
+    )
+    assert smoke.exit_code == 0, smoke.output
+
+    result = CliRunner().invoke(
+        cli_module.app,
+        [
+            "anrt-export-eval-seed",
+            "--db",
+            str(db),
+            "--output",
+            str(seed),
+            "--limit",
+            "2",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    cases = load_evaluation_cases(seed)
+    summary = run_evaluation(cases)
+    assert len(cases) == 2
+    assert cases[0].notes == "TODO: relire et confirmer l'annotation issue du classifieur."
+    assert cases[0].offer.source == "anrt"
+    assert summary.false_targets == 0
+    assert summary.missed_targets == 0

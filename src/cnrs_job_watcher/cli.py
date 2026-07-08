@@ -19,7 +19,11 @@ from cnrs_job_watcher.anrt.fetch import (
     AnrtKind,
     is_logged_out_page,
 )
-from cnrs_job_watcher.anrt.fixtures import anonymize_fixture_tree, audit_anrt_fixture_tree
+from cnrs_job_watcher.anrt.fixtures import (
+    anonymize_fixture_tree,
+    anonymize_html,
+    audit_anrt_fixture_tree,
+)
 from cnrs_job_watcher.classify import apply_classification
 from cnrs_job_watcher.evaluation import load_evaluation_cases, run_evaluation
 from cnrs_job_watcher.export import export_csv, export_markdown
@@ -35,6 +39,7 @@ from cnrs_job_watcher.profiles import SearchProfile, dedupe_offers, filter_offer
 from cnrs_job_watcher.schemas import JobOffer
 from cnrs_job_watcher.sources import AnrtSourceAdapter, CnrsSourceAdapter, SourceAdapter
 from cnrs_job_watcher.storage import (
+    all_offers,
     audit_counts,
     changed_offers,
     connect,
@@ -721,6 +726,55 @@ def anrt_mvp_audit(
         raise typer.Exit(code=1)
 
 
+@app.command("anrt-export-eval-seed")
+def anrt_export_eval_seed(
+    db: Path = typer.Option(
+        Path("data/validation/anrt_real_smoke.sqlite"),
+        help="Base SQLite ANRT dont extraire les offres.",
+    ),
+    output: Path = typer.Option(
+        Path("data/validation/anrt_eval_seed.json"),
+        help="Fichier JSON d'évaluation seed à écrire hors Git.",
+    ),
+    limit: int = typer.Option(20, min=1, help="Nombre maximum de cas à exporter."),
+    min_score: float = typer.Option(
+        0.0,
+        min=0,
+        max=1,
+        help="Score minimal des offres à inclure.",
+    ),
+    include_excluded: bool = typer.Option(
+        True,
+        "--include-excluded/--no-include-excluded",
+        help="Inclure aussi les offres classées exclude pour contrôler les faux positifs.",
+    ),
+) -> None:
+    """Génère un dataset d'évaluation ANRT seed depuis la base locale."""
+    if not db.exists():
+        raise typer.BadParameter(f"Base SQLite introuvable: {db}")
+    connection = connect(db)
+    offers = [
+        offer
+        for offer in all_offers(connection)
+        if offer.source == "anrt"
+        and not offer.unavailable
+        and offer.last_seen_status != "missing"
+        and (include_excluded or offer.target_bucket != "exclude")
+        and (offer.ai_relevance_score or 0) >= min_score
+    ]
+    offers.sort(key=_evaluation_seed_sort_key)
+    cases = [_evaluation_seed_case(offer) for offer in offers[:limit]]
+    if not cases:
+        raise typer.Exit(code=1)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(cases, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    console.print(f"[green]Dataset seed ANRT[/green] {output} ({len(cases)} cas).")
+    console.print(
+        "[yellow]À relire avant commit[/yellow] "
+        "Les labels sont les labels actuels du classifieur, pas une annotation humaine."
+    )
+
+
 @app.command("anrt-anonymize-fixtures")
 def anrt_anonymize_fixtures(
     input_dir: Path = typer.Argument(..., help="Dossier de snapshots ANRT HTML source."),
@@ -1371,6 +1425,66 @@ def _write_anrt_mvp_audit_report(output: Path, payload: dict[str, object]) -> No
         detail = str(gate["detail"]).replace("|", "\\|")
         lines.append(f"| {gate['name']} | {status} | {detail} |")
     output.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _evaluation_seed_sort_key(offer: JobOffer) -> tuple[int, float, str]:
+    bucket_rank = {
+        "primary_target": 0,
+        "secondary_target": 1,
+        "adjacent_review": 2,
+        "exclude": 3,
+    }
+    return (
+        bucket_rank.get(offer.target_bucket, 9),
+        -(offer.ai_relevance_score or 0),
+        offer.title,
+    )
+
+
+def _evaluation_seed_case(offer: JobOffer) -> dict[str, object]:
+    return {
+        "reference": offer.reference or str(offer.url),
+        "expected_bucket": offer.target_bucket,
+        "expected_ai_domain": offer.ai_category or "not_relevant",
+        "expected_accessibility": offer.accessibility,
+        "notes": "TODO: relire et confirmer l'annotation issue du classifieur.",
+        "offer": _evaluation_seed_offer_payload(offer),
+    }
+
+
+def _evaluation_seed_offer_payload(offer: JobOffer) -> dict[str, object]:
+    source_specific = {
+        key: _anonymize_seed_value(value)
+        for key, value in offer.source_specific.items()
+        if value not in {None, ""}
+    }
+    return {
+        "source": "anrt",
+        "source_specific": source_specific,
+        "url": str(offer.url),
+        "reference": _anonymize_seed_value(offer.reference),
+        "title": _anonymize_seed_value(offer.title),
+        "contract_type": _anonymize_seed_value(offer.contract_type),
+        "duration": _anonymize_seed_value(offer.duration),
+        "education_level": _anonymize_seed_value(offer.education_level),
+        "experience_level": _anonymize_seed_value(offer.experience_level),
+        "location": _anonymize_seed_value(offer.location),
+        "lab": _anonymize_seed_value(offer.lab),
+        "published_at_text": _anonymize_seed_value(offer.published_at_text),
+        "description": _anonymize_seed_value(offer.description),
+        "skills": _anonymize_seed_value(offer.skills),
+        "raw_text": _anonymize_seed_value(offer.raw_text) or "",
+    }
+
+
+def _anonymize_seed_value(value: object) -> object:
+    if isinstance(value, str):
+        return anonymize_html(value)
+    if isinstance(value, list):
+        return [_anonymize_seed_value(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _anonymize_seed_value(item) for key, item in value.items()}
+    return value
 
 
 def _load_sync_playwright() -> object:

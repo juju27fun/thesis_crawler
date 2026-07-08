@@ -59,6 +59,19 @@ Le dossier `data/validation/` reste hors Git. Le rapport doit prouver au minimum
 pages liste parcourues, URLs découvertes, offres fetchées, erreurs détail, buckets et chemin du
 digest produit.
 
+Pour amorcer le dataset d'évaluation réel depuis la base du smoke :
+
+```bash
+uv run cnrs-jobs anrt-export-eval-seed \
+  --db data/validation/anrt_real_smoke.sqlite \
+  --output data/validation/anrt_eval_seed.json \
+  --limit 20
+```
+
+Le fichier produit est un point de départ local : les labels viennent du classifieur courant. Il
+faut relire, corriger, anonymiser plus finement si nécessaire, puis seulement copier une version
+validée vers `tests/fixtures/evaluation/anrt_real_offers.json`.
+
 Quand des fixtures anonymisées réelles et un dataset d'évaluation réel sont prêts, vérifier le MVP
 ANRT avec :
 
