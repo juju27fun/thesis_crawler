@@ -11,7 +11,11 @@ from cnrs_job_watcher.anrt.fetch import (
     AnrtFixtureClient,
     AnrtKind,
 )
-from cnrs_job_watcher.anrt.fixtures import anonymize_fixture_tree, anonymize_html
+from cnrs_job_watcher.anrt.fixtures import (
+    anonymize_fixture_tree,
+    anonymize_html,
+    audit_anrt_fixture_tree,
+)
 from cnrs_job_watcher.anrt.parse import (
     AnrtOfferUnavailable,
     AnrtServerErrorPage,
@@ -378,3 +382,41 @@ def test_anrt_fixture_anonymizer_masks_contact_details(tmp_path: Path) -> None:
     assert "jane.doe@example.com" not in (output / "detail" / "offer.html").read_text(
         encoding="utf-8"
     )
+
+
+def test_anrt_fixture_audit_accepts_complete_anonymized_fixture_tree() -> None:
+    audit = audit_anrt_fixture_tree(FIXTURES / "anrt")
+
+    assert audit.ok is True
+    assert audit.missing_list_pages == []
+    assert audit.missing_detail_urls == []
+    assert audit.contact_leak_files == []
+    assert audit.discovered_urls == 2
+    assert audit.detail_files == 2
+
+
+def test_anrt_fixture_audit_reports_missing_details_and_contact_leaks(tmp_path: Path) -> None:
+    fixture_dir = tmp_path / "anrt"
+    (fixture_dir / "list").mkdir(parents=True)
+    (fixture_dir / "detail").mkdir()
+    (fixture_dir / "list" / "entreprise.html").write_text(
+        """
+        <html><body>
+          <a href="/espace-membre/offre-detail/123">Offre 1</a>
+          <p>Contact: jane.doe@example.com</p>
+        </body></html>
+        """,
+        encoding="utf-8",
+    )
+    (fixture_dir / "list" / "laboratoire.html").write_text("<html><body></body></html>")
+
+    audit = audit_anrt_fixture_tree(fixture_dir)
+
+    assert audit.ok is False
+    assert audit.missing_list_pages == []
+    assert audit.detail_files == 0
+    assert audit.discovered_urls == 1
+    assert audit.missing_detail_urls == [
+        "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/123"
+    ]
+    assert audit.contact_leak_files == ["list/entreprise.html"]

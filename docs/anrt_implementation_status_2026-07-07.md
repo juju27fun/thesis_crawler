@@ -57,6 +57,8 @@ fixtures anonymisées issues du HTML réel.
 - Dataset `tests/fixtures/evaluation/anrt_offers.json` avec 21 cas synthétiques couvrant IA forte,
   génératif, ARN/protéines, bioinformatique, data adjacente et exclusions "IA" vagues ;
 - Fixtures HTML anonymisées `tests/fixtures/anrt`
+- Commande `cnrs-jobs anrt-fixture-audit` pour vérifier structure, détails manquants et contacts
+  non anonymisés évidents dans un dossier fixture ANRT.
 
 ## Garde-fous validés
 
@@ -71,6 +73,8 @@ fixtures anonymisées issues du HTML réel.
 - Une page ANRT logout/déconnexion n'est pas parsée comme une offre.
 - Une page détail ANRT indisponible, une page erreur serveur et une page authentifiée non-offre
   produisent des erreurs parser explicites.
+- Un dossier fixture ANRT peut être audité avant commit pour repérer listes manquantes, détails
+  absents et emails/téléphones restants.
 - La date limite ANRT reste un champ spécifique et ne pollue pas `published_at_text`.
 - Les offres disparues restent en historique mais ne sortent plus en shortlist/digest.
 - Les offres CIFRE sans signal IA/ML restent exclues.
@@ -102,7 +106,7 @@ uv run cnrs-jobs anrt-anonymize-fixtures tests/fixtures/anrt /tmp/anrt_anonymize
 Résultats observés :
 
 - `ruff` vert ;
-- `pytest` vert, 47 tests ;
+- `pytest` vert, 49 tests ;
 - évaluation CNRS annotée : métriques 1.000 ;
 - évaluation ANRT synthétique 21 cas : métriques 1.000 ;
 - évaluation CNRS observée : métriques 1.000 ;

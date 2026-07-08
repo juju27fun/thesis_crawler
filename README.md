@@ -49,6 +49,7 @@ uv run cnrs-jobs crawl --source anrt --anrt-kind entreprise --anrt-session-file 
 uv run cnrs-jobs crawl --source anrt --anrt-kind laboratoire --anrt-session-file data/auth/anrt-cookies.json
 uv run cnrs-jobs crawl --source anrt --anrt-fixture-dir tests/fixtures/anrt
 uv run cnrs-jobs anrt-anonymize-fixtures data/raw/anrt tests/fixtures/anrt_real_anonymized
+uv run cnrs-jobs anrt-fixture-audit tests/fixtures/anrt_real_anonymized
 uv run cnrs-jobs crawl --discovery list --limit-pages 13
 uv run cnrs-jobs profile-audit --limit-pages 2
 uv run cnrs-jobs export --format markdown --output cnrs_ia_jobs.md

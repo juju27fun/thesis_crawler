@@ -71,10 +71,12 @@ Pour transformer des snapshots locaux en fixtures committables, utiliser d'abord
 
 ```bash
 uv run cnrs-jobs anrt-anonymize-fixtures data/raw/anrt tests/fixtures/anrt_real_anonymized
+uv run cnrs-jobs anrt-fixture-audit tests/fixtures/anrt_real_anonymized
 ```
 
-Relire ensuite les fixtures produites avant commit : l'outil masque emails et téléphones évidents,
-mais il ne garantit pas l'anonymisation de noms propres ou de détails confidentiels.
+Relire ensuite les fixtures produites avant commit : l'audit vérifie la structure, les détails
+manquants et les emails/téléphones évidents, mais il ne garantit pas l'anonymisation de noms propres
+ou de détails confidentiels.
 
 ## Exemple cron
 

@@ -18,7 +18,7 @@ from cnrs_job_watcher.anrt.fetch import (
     AnrtFixtureClient,
     AnrtKind,
 )
-from cnrs_job_watcher.anrt.fixtures import anonymize_fixture_tree
+from cnrs_job_watcher.anrt.fixtures import anonymize_fixture_tree, audit_anrt_fixture_tree
 from cnrs_job_watcher.classify import apply_classification
 from cnrs_job_watcher.evaluation import load_evaluation_cases, run_evaluation
 from cnrs_job_watcher.export import export_csv, export_markdown
@@ -481,6 +481,43 @@ def anrt_anonymize_fixtures(
         raise typer.BadParameter(f"Dossier source introuvable: {input_dir}")
     count = anonymize_fixture_tree(input_dir, output_dir)
     console.print(f"[green]OK[/green] {count} fichiers HTML anonymisés vers {output_dir}.")
+
+
+@app.command("anrt-fixture-audit")
+def anrt_fixture_audit(
+    fixture_dir: Path = typer.Argument(..., help="Dossier fixture ANRT anonymisé à auditer."),
+    json_output: bool = typer.Option(False, "--json", help="Sortie JSON machine-readable."),
+) -> None:
+    """Vérifie qu'un dossier fixture ANRT est complet et anonymisé."""
+    if not fixture_dir.exists() or not fixture_dir.is_dir():
+        raise typer.BadParameter(f"Dossier fixture introuvable: {fixture_dir}")
+    audit = audit_anrt_fixture_tree(fixture_dir)
+    if json_output:
+        console.print(json.dumps(audit.to_dict(), ensure_ascii=False))
+        return
+
+    table = Table(title="ANRT fixture audit")
+    table.add_column("Statut")
+    table.add_column("Listes")
+    table.add_column("Détails", justify="right")
+    table.add_column("URLs découvertes", justify="right")
+    table.add_column("Détails manquants", justify="right")
+    table.add_column("Fuites contact", justify="right")
+    table.add_row(
+        "ok" if audit.ok else "à corriger",
+        ", ".join(audit.list_pages_present) or "aucune",
+        str(audit.detail_files),
+        str(audit.discovered_urls),
+        str(len(audit.missing_detail_urls)),
+        str(len(audit.contact_leak_files)),
+    )
+    console.print(table)
+    if audit.missing_list_pages:
+        console.print(f"[yellow]Listes manquantes[/yellow] {', '.join(audit.missing_list_pages)}")
+    if audit.missing_detail_urls:
+        console.print(f"[yellow]Détails manquants[/yellow] {len(audit.missing_detail_urls)}")
+    if audit.contact_leak_files:
+        console.print(f"[red]Contacts non anonymisés[/red] {', '.join(audit.contact_leak_files)}")
 
 
 @app.command("export")
