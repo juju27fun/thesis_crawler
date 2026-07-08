@@ -438,14 +438,15 @@ def export_command(
     min_score: float = typer.Option(0.35, min=0, max=1, help="Score minimum à exporter."),
     only_new: bool = typer.Option(False, help="Exporter seulement les offres du dernier run."),
     include_excluded: bool = typer.Option(False, help="Inclure les exclusions notables."),
-    source: str | None = typer.Option(None, help="Filtrer par source normalisée."),
+    source: SourceName | None = typer.Option(None, help="Filtrer par source normalisée."),
 ) -> None:
     """Exporte la shortlist locale en Markdown et/ou CSV."""
     connection = connect(db)
     since = latest_run_started_at(connection) if only_new else None
-    offers = shortlist(connection, min_score=min_score, since=since, source=source)
+    source_filter = _source_filter_value(source)
+    offers = shortlist(connection, min_score=min_score, since=since, source=source_filter)
     if include_excluded:
-        offers.extend(excluded_offers(connection, since=since, source=source))
+        offers.extend(excluded_offers(connection, since=since, source=source_filter))
 
     if format not in {"markdown", "csv", "both"}:
         raise typer.BadParameter("format doit valoir markdown, csv ou both")
@@ -467,10 +468,11 @@ def export_command(
 def audit(
     db: Path = typer.Option(Path("data/cnrs_jobs.sqlite"), help="Base SQLite locale."),
     json_output: bool = typer.Option(False, "--json", help="Sortie JSON machine-readable."),
+    source: SourceName | None = typer.Option(None, help="Filtrer par source normalisée."),
 ) -> None:
     """Affiche les compteurs qualité du dernier état local."""
     connection = connect(db)
-    counts = audit_counts(connection)
+    counts = audit_counts(connection, source=_source_filter_value(source))
     if json_output:
         console.print(json.dumps(counts, ensure_ascii=False, default=str))
         return
@@ -594,14 +596,15 @@ def digest(
         help="Limiter aux offres vues pour la première fois au dernier run.",
     ),
     include_excluded: bool = typer.Option(False, help="Inclure les exclusions notables."),
-    source: str | None = typer.Option(None, help="Filtrer par source normalisée."),
+    source: SourceName | None = typer.Option(None, help="Filtrer par source normalisée."),
 ) -> None:
     """Produit un digest Markdown daté, pensé pour une veille quotidienne."""
     connection = connect(db)
     since = latest_run_started_at(connection) if only_new else None
-    offers = shortlist(connection, min_score=min_score, since=since, source=source)
+    source_filter = _source_filter_value(source)
+    offers = shortlist(connection, min_score=min_score, since=since, source=source_filter)
     if include_excluded:
-        offers.extend(excluded_offers(connection, since=since, source=source))
+        offers.extend(excluded_offers(connection, since=since, source=source_filter))
     output_path = output or Path("data/digests") / f"{datetime.now(UTC).date().isoformat()}.md"
     export_markdown(offers, output_path)
     scope = "nouvelles offres" if only_new else "shortlist complète"
@@ -691,3 +694,9 @@ def _filter_sitemap_urls_by_profile(urls: list[str], profile: SearchProfile) -> 
     if profile == SearchProfile.DOCTORANT:
         return [url for url in urls if "/Offres/Doctorant/" in url]
     return urls
+
+
+def _source_filter_value(source: SourceName | None) -> str | None:
+    if source is None or source == SourceName.ALL:
+        return None
+    return source.value

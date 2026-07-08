@@ -24,6 +24,9 @@ fixtures anonymisées issues du HTML réel.
 - `cnrs-jobs crawl --source cnrs`
 - `cnrs-jobs crawl --source anrt --anrt-kind entreprise|laboratoire|both`
 - `cnrs-jobs crawl --source all`
+- `cnrs-jobs export --source all`
+- `cnrs-jobs digest --source all`
+- `cnrs-jobs audit --source all`
 - `cnrs-jobs anrt-session-check`
 - `cnrs-jobs anrt-session-check --anrt-fixture-dir tests/fixtures/anrt`
 - `cnrs-jobs anrt-anonymize-fixtures`
@@ -38,6 +41,7 @@ fixtures anonymisées issues du HTML réel.
   - `source_kind`
   - `status_message`
 - Audit par source via `audit_counts`
+- Scope `--source all` cohérent pour crawl, export, digest et audit ;
 - Exports Markdown/CSV avec :
   - origine lisible ;
   - entreprise ;
@@ -71,6 +75,9 @@ uv run cnrs-jobs eval --dataset tests/fixtures/evaluation/observed_offers.json
 uv run cnrs-jobs anrt-session-check --raw-dir /tmp/anrt_session_check_raw --no-cache
 uv run cnrs-jobs crawl --source all --limit-offers 2 --db /tmp/source_all.sqlite --raw-dir /tmp/source_all_raw --no-cache
 uv run cnrs-jobs audit --db /tmp/source_all.sqlite --json
+uv run cnrs-jobs audit --db /tmp/anrt_scope.sqlite --source all --json
+uv run cnrs-jobs export --db /tmp/anrt_scope_export.sqlite --source all --format markdown --output /tmp/anrt_scope_all.md --min-score 0.1
+uv run cnrs-jobs digest --db /tmp/anrt_scope_export.sqlite --source all --output /tmp/anrt_scope_digest.md --min-score 0.1 --no-only-new
 uv run cnrs-jobs anrt-session-check --anrt-fixture-dir tests/fixtures/anrt --no-cache
 uv run cnrs-jobs crawl --source anrt --anrt-fixture-dir tests/fixtures/anrt --db /tmp/anrt_fixture.sqlite --raw-dir /tmp/anrt_fixture_raw --no-cache
 uv run cnrs-jobs export --db /tmp/anrt_fixture.sqlite --source anrt --format markdown --output /tmp/anrt_fixture.md --min-score 0.1
@@ -89,6 +96,7 @@ Résultats observés :
 - mode fixture ANRT : 2 offres traitées, 0 erreur, buckets `primary_target` et `adjacent_review`.
 - export fixture ANRT : provenance entreprise/laboratoire et date limite affichées.
 - tests de pagination fixture : une deuxième page liste est suivie et dédupliquée.
+- `audit/export/digest --source all` : pas de filtre source, sorties multi-source prêtes.
 
 ## Reste à faire pour compléter le plan
 

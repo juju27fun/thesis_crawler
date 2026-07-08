@@ -284,43 +284,56 @@ def excluded_offers(
     return [_row_to_offer(row) for row in rows]
 
 
-def audit_counts(connection: sqlite3.Connection) -> dict[str, object]:
-    total = connection.execute("SELECT COUNT(*) FROM offers").fetchone()[0]
+def audit_counts(connection: sqlite3.Connection, source: str | None = None) -> dict[str, object]:
+    source_filter = "WHERE source = ?" if source else ""
+    and_source_filter = "AND source = ?" if source else ""
+    parameters: list[object] = [source] if source else []
+    total = connection.execute(
+        f"SELECT COUNT(*) FROM offers {source_filter}",
+        tuple(parameters),
+    ).fetchone()[0]
     unavailable = connection.execute(
-        "SELECT COUNT(*) FROM offers WHERE unavailable = 1"
+        f"SELECT COUNT(*) FROM offers WHERE unavailable = 1 {and_source_filter}",
+        tuple(parameters),
     ).fetchone()[0]
     by_bucket = {
         row["target_bucket"]: row["count"]
         for row in connection.execute(
-            """
+            f"""
             SELECT target_bucket, COUNT(*) AS count
             FROM offers
+            {source_filter}
             GROUP BY target_bucket
             ORDER BY count DESC
-            """
+            """,
+            tuple(parameters),
         ).fetchall()
     }
     by_source = {
         row["source"]: row["count"]
         for row in connection.execute(
-            """
+            f"""
             SELECT source, COUNT(*) AS count
             FROM offers
+            {source_filter}
             GROUP BY source
             ORDER BY count DESC
-            """
+            """,
+            tuple(parameters),
         ).fetchall()
     }
     by_exclusion_reason = {
         row["exclusion_reason"]: row["count"]
         for row in connection.execute(
-            """
+            f"""
             SELECT COALESCE(exclusion_reason, 'none') AS exclusion_reason, COUNT(*) AS count
             FROM offers
             WHERE is_target = 0
+            {and_source_filter}
             GROUP BY COALESCE(exclusion_reason, 'none')
             ORDER BY count DESC
-            """
+            """,
+            tuple(parameters),
         ).fetchall()
     }
     return {
@@ -330,7 +343,7 @@ def audit_counts(connection: sqlite3.Connection) -> dict[str, object]:
         "by_source": by_source,
         "by_exclusion_reason": by_exclusion_reason,
         "latest_run": latest_run(connection),
-        "top_scores": top_scores(connection),
+        "top_scores": top_scores(connection, source=source),
     }
 
 
@@ -428,16 +441,26 @@ def record_offer_snapshot(
     connection.commit()
 
 
-def top_scores(connection: sqlite3.Connection, limit: int = 5) -> list[dict[str, object]]:
+def top_scores(
+    connection: sqlite3.Connection,
+    limit: int = 5,
+    source: str | None = None,
+) -> list[dict[str, object]]:
+    source_filter = "AND source = ?" if source else ""
+    parameters: list[object] = []
+    if source:
+        parameters.append(source)
+    parameters.append(limit)
     rows = connection.execute(
-        """
+        f"""
         SELECT source, reference, title, target_bucket, ai_relevance_score
         FROM offers
         WHERE ai_relevance_score IS NOT NULL
+        {source_filter}
         ORDER BY ai_relevance_score DESC, title ASC
         LIMIT ?
         """,
-        (limit,),
+        tuple(parameters),
     ).fetchall()
     return [dict(row) for row in rows]
 

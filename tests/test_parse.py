@@ -603,11 +603,19 @@ def test_source_specific_round_trip_and_source_filter(tmp_path: Path) -> None:
     upsert_offer(connection, inria_offer)
 
     cnrs_rows = shortlist(connection, min_score=0.25, source="cnrs")
+    explicit_all_rows = shortlist(connection, min_score=0.25, source=None)
     all_rows = shortlist(connection, min_score=0.25)
+    cnrs_counts = audit_counts(connection, source="cnrs")
+    all_counts = audit_counts(connection)
 
     assert [offer.source for offer in cnrs_rows] == ["cnrs"]
     assert cnrs_rows[0].source_specific == {"portal": "emploi.cnrs.fr"}
+    assert {offer.source for offer in explicit_all_rows} == {"cnrs", "inria"}
     assert {offer.source for offer in all_rows} == {"cnrs", "inria"}
+    assert cnrs_counts["total"] == 1
+    assert cnrs_counts["by_source"] == {"cnrs": 1}
+    assert all_counts["total"] == 2
+    assert all_counts["by_source"] == {"cnrs": 1, "inria": 1}
 
 
 def test_cnrs_source_adapter_normalizes_source() -> None:

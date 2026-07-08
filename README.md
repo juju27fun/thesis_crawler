@@ -54,9 +54,12 @@ uv run cnrs-jobs profile-audit --limit-pages 2
 uv run cnrs-jobs export --format markdown --output cnrs_ia_jobs.md
 uv run cnrs-jobs export --format csv --output cnrs_ia_jobs.csv
 uv run cnrs-jobs export --source cnrs
+uv run cnrs-jobs export --source all --format markdown --output thesis_ia_jobs.md
 uv run cnrs-jobs audit
 uv run cnrs-jobs audit --json
+uv run cnrs-jobs audit --source all
 uv run cnrs-jobs digest
+uv run cnrs-jobs digest --source all
 uv run cnrs-jobs digest --include-excluded
 uv run cnrs-jobs eval
 uv run cnrs-jobs eval --source anrt
@@ -89,7 +92,8 @@ nécessaire avant automatisation quotidienne.
 
 `--source all` lance CNRS puis ANRT. Si la session ANRT est absente ou expirée, CNRS continue et le
 run signale l'authentification ANRT manquante. Un run `--source anrt` seul échoue avec code `2` dans
-ce cas, pour éviter de confondre une session invalide avec une absence d'offres.
+ce cas, pour éviter de confondre une session invalide avec une absence d'offres. Pour `export`,
+`digest` et `audit`, `--source all` signifie "ne pas filtrer par source".
 
 `--anrt-fixture-dir` remplace l'accès réseau ANRT par un dossier local anonymisé contenant
 `list/entreprise.html`, `list/laboratoire.html` et les détails sous `detail/`. C'est le mode de
