@@ -17,6 +17,7 @@ from cnrs_job_watcher.anrt.fetch import (
     AnrtClient,
     AnrtFixtureClient,
     AnrtKind,
+    is_logged_out_page,
 )
 from cnrs_job_watcher.anrt.fixtures import anonymize_fixture_tree, audit_anrt_fixture_tree
 from cnrs_job_watcher.classify import apply_classification
@@ -471,6 +472,67 @@ def anrt_session_check(
     console.print(kind_table)
 
 
+@app.command("anrt-login")
+def anrt_login(
+    output: Path = typer.Option(
+        Path("data/auth/anrt-cookies.json"),
+        help="Fichier storage_state Playwright à écrire hors Git.",
+    ),
+    start_url: str = typer.Option(
+        "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-list/entreprise",
+        help="URL ANRT à ouvrir pour la connexion.",
+    ),
+    timeout_seconds: int = typer.Option(
+        600,
+        min=30,
+        help="Temps maximum laissé pour se connecter dans le navigateur.",
+    ),
+    headless: bool = typer.Option(
+        False,
+        "--headless",
+        help="Lancer le navigateur sans interface visible.",
+    ),
+    verify: bool = typer.Option(
+        True,
+        "--verify/--no-verify",
+        help="Vérifier la session sur les listes entreprise/laboratoire avant d'écrire le fichier.",
+    ),
+) -> None:
+    """Ouvre un navigateur Playwright pour créer une session ANRT locale hors Git."""
+    try:
+        sync_playwright = _load_sync_playwright()
+    except RuntimeError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=2) from exc
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    console.print(
+        "[bold]Connexion ANRT[/bold] Connecte-toi dans le navigateur ouvert, "
+        "puis reviens ici pour valider."
+    )
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=headless)
+        context = browser.new_context()
+        page = context.new_page()
+        page.goto(start_url, wait_until="domcontentloaded")
+        typer.confirm(
+            "Appuie sur Entrée quand la session ANRT est connectée",
+            default=True,
+            show_default=False,
+            abort=False,
+        )
+        if verify:
+            _verify_anrt_browser_session(page, timeout_seconds=timeout_seconds)
+        context.storage_state(path=str(output))
+        browser.close()
+
+    console.print(f"[green]Session ANRT enregistrée[/green] {output}")
+    console.print(
+        "Vérification recommandée: "
+        f"uv run cnrs-jobs anrt-session-check --anrt-session-file {output} --no-cache"
+    )
+
+
 @app.command("anrt-anonymize-fixtures")
 def anrt_anonymize_fixtures(
     input_dir: Path = typer.Argument(..., help="Dossier de snapshots ANRT HTML source."),
@@ -822,3 +884,29 @@ def _source_filter_value(source: SourceName | None) -> str | None:
     if source is None or source == SourceName.ALL:
         return None
     return source.value
+
+
+def _load_sync_playwright() -> object:
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError as exc:
+        raise RuntimeError(
+            "Playwright n'est pas installé. Lance avec "
+            "`uv run --with playwright cnrs-jobs anrt-login`, après "
+            "`uv run --with playwright playwright install chromium` si Chromium manque."
+        ) from exc
+    return sync_playwright
+
+
+def _verify_anrt_browser_session(page: object, *, timeout_seconds: int) -> None:
+    targets = [
+        "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-list/entreprise",
+        "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-list/laboratoire",
+    ]
+    for target in targets:
+        page.goto(target, wait_until="domcontentloaded", timeout=timeout_seconds * 1000)
+        html = page.content()
+        if is_logged_out_page(html, page.url):
+            raise typer.BadParameter(
+                "La session ANRT semble expirée ou non connectée après login."
+            )

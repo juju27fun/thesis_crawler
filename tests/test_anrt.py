@@ -4,7 +4,9 @@ import json
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
+from cnrs_job_watcher import cli as cli_module
 from cnrs_job_watcher.anrt.fetch import (
     AnrtAuthenticationRequired,
     AnrtClient,
@@ -438,3 +440,28 @@ def test_anrt_fixture_audit_reports_missing_details_and_contact_leaks(tmp_path: 
         "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/123"
     ]
     assert audit.contact_leak_files == ["list/entreprise.html"]
+
+
+def test_anrt_login_reports_missing_playwright(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    def missing_playwright() -> object:
+        raise RuntimeError("Playwright n'est pas installé.")
+
+    monkeypatch.setattr(cli_module, "_load_sync_playwright", missing_playwright)
+
+    result = CliRunner().invoke(
+        cli_module.app,
+        [
+            "anrt-login",
+            "--output",
+            str(tmp_path / "anrt-cookies.json"),
+            "--no-verify",
+        ],
+        input="\n",
+    )
+
+    assert result.exit_code == 2
+    assert "Playwright n'est pas installé" in result.output
+    assert not (tmp_path / "anrt-cookies.json").exists()

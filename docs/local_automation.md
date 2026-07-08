@@ -30,6 +30,14 @@ Sans `OPENAI_API_KEY`, `--classifier hybrid` retombe sur les règles locales.
 ANRT/CIFRE nécessite une session locale. Vérifier la session avant de l'ajouter à une routine :
 
 ```bash
+uv run --with playwright playwright install chromium
+uv run --with playwright cnrs-jobs anrt-login --output data/auth/anrt-cookies.json
+```
+
+La commande ouvre un navigateur local, laisse le temps de se connecter à ANRT, vérifie les listes
+entreprise/laboratoire, puis écrit un `storage_state` Playwright dans `data/auth/`, hors Git.
+
+```bash
 uv run cnrs-jobs anrt-session-check \
   --anrt-session-file data/auth/anrt-cookies.json \
   --raw-dir data/raw

@@ -25,6 +25,7 @@ fixtures anonymisées issues du HTML réel.
 - `cnrs-jobs crawl --source cnrs`
 - `cnrs-jobs crawl --source anrt --anrt-kind entreprise|laboratoire|both`
 - `cnrs-jobs crawl --source all`
+- `cnrs-jobs anrt-login`
 - `cnrs-jobs export --source all`
 - `cnrs-jobs digest --source all`
 - `cnrs-jobs audit --source all`
@@ -80,6 +81,8 @@ fixtures anonymisées issues du HTML réel.
 ## Garde-fous validés
 
 - Un run ANRT sans session sort en code `2` avec `ANRT auth requise`.
+- `anrt-login` crée un `storage_state` Playwright local hors Git et échoue clairement si Playwright
+  n'est pas installé.
 - Un fichier session ANRT absent, non JSON, sans liste `cookies` ou sans cookie utilisable est
   rejeté avant crawl avec une erreur d'authentification explicite.
 - Un run `--source all` continue CNRS si ANRT est déconnecté.
@@ -109,6 +112,7 @@ uv run pytest -q
 uv run cnrs-jobs eval
 uv run cnrs-jobs eval --source anrt
 uv run cnrs-jobs eval --dataset tests/fixtures/evaluation/observed_offers.json
+uv run cnrs-jobs anrt-login --help
 uv run cnrs-jobs anrt-session-check --raw-dir /tmp/anrt_session_check_raw --no-cache
 uv run cnrs-jobs crawl --source all --limit-offers 2 --db /tmp/source_all.sqlite --raw-dir /tmp/source_all_raw --no-cache
 uv run cnrs-jobs audit --db /tmp/source_all.sqlite --json
@@ -124,10 +128,11 @@ uv run cnrs-jobs anrt-anonymize-fixtures tests/fixtures/anrt /tmp/anrt_anonymize
 Résultats observés :
 
 - `ruff` vert ;
-- `pytest` vert, 50 tests ;
+- `pytest` vert, 51 tests ;
 - évaluation CNRS annotée : métriques 1.000 ;
 - évaluation ANRT synthétique 21 cas : métriques 1.000 ;
 - évaluation CNRS observée : métriques 1.000 ;
+- `anrt-login --help` expose la commande de création de session locale ;
 - `anrt-session-check` sans session : code `2`, attendu ;
 - `--source all` sans session ANRT : CNRS traité, ANRT signalé `auth_required`.
 - mode fixture ANRT : 2 offres traitées, 0 erreur, buckets `primary_target` et `adjacent_review`.
@@ -159,9 +164,11 @@ Résultats observés :
 
 ## Prochaine action recommandée
 
-Obtenir une session ANRT connectée locale et exécuter :
+Installer Playwright si nécessaire, obtenir une session ANRT connectée locale et exécuter :
 
 ```bash
+uv run --with playwright playwright install chromium
+uv run --with playwright cnrs-jobs anrt-login --output data/auth/anrt-cookies.json
 uv run cnrs-jobs anrt-session-check \
   --anrt-session-file data/auth/anrt-cookies.json \
   --raw-dir data/raw \
