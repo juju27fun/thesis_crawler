@@ -53,6 +53,12 @@ fixtures anonymisées issues du HTML réel.
   - entreprise ;
   - laboratoire source ;
   - secteur ;
+  - discipline ;
+  - école doctorale ;
+  - partenaire attendu ;
+  - statut financement / CIFRE ;
+  - télétravail/hybride ;
+  - présence de contact visible ;
   - date limite.
 - Parsing ANRT enrichi dans `source_specific` :
   - discipline ;

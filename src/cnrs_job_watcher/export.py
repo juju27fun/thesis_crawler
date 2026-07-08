@@ -78,6 +78,13 @@ def export_csv(offers: list[JobOffer], output: Path) -> None:
                 "company",
                 "source_laboratory",
                 "sector",
+                "discipline",
+                "doctoral_school",
+                "partner_expected",
+                "remote_or_hybrid",
+                "funding_status",
+                "cifre_status",
+                "contact_visible",
                 "application_deadline",
                 "category",
                 "summary",
@@ -108,6 +115,13 @@ def export_csv(offers: list[JobOffer], output: Path) -> None:
                     "company": offer.source_specific.get("company_name"),
                     "source_laboratory": offer.source_specific.get("laboratory_name"),
                     "sector": offer.source_specific.get("sector"),
+                    "discipline": offer.source_specific.get("discipline"),
+                    "doctoral_school": offer.source_specific.get("doctoral_school"),
+                    "partner_expected": offer.source_specific.get("partner_expected"),
+                    "remote_or_hybrid": offer.source_specific.get("remote_or_hybrid"),
+                    "funding_status": offer.source_specific.get("funding_status"),
+                    "cifre_status": offer.source_specific.get("cifre_status"),
+                    "contact_visible": offer.source_specific.get("contact_visible"),
                     "application_deadline": offer.source_specific.get("application_deadline"),
                     "category": offer.ai_category,
                     "summary": offer.short_summary,
@@ -141,6 +155,19 @@ def _source_detail_lines(offer: JobOffer) -> list[str]:
         ("Entreprise", offer.source_specific.get("company_name")),
         ("Laboratoire source", offer.source_specific.get("laboratory_name")),
         ("Secteur", offer.source_specific.get("sector")),
+        ("Discipline", offer.source_specific.get("discipline")),
+        ("École doctorale", offer.source_specific.get("doctoral_school")),
+        ("Partenaire attendu", offer.source_specific.get("partner_expected")),
+        ("Télétravail / hybride", offer.source_specific.get("remote_or_hybrid")),
+        ("Statut financement", offer.source_specific.get("funding_status")),
+        ("Statut CIFRE", offer.source_specific.get("cifre_status")),
+        ("Contact visible", _format_bool(offer.source_specific.get("contact_visible"))),
         ("Date limite", offer.source_specific.get("application_deadline")),
     ]
     return [f"- {label} : {value}" for label, value in details if value]
+
+
+def _format_bool(value: object) -> str | None:
+    if isinstance(value, bool):
+        return "oui" if value else "non"
+    return None

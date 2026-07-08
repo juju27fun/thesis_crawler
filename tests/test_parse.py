@@ -631,6 +631,13 @@ def test_exports_include_anrt_source_specific_fields(tmp_path: Path) -> None:
                 "company_name": "Acme Research",
                 "laboratory_name": "Laboratoire IA Appliquée",
                 "sector": "Industrie",
+                "discipline": "Informatique",
+                "doctoral_school": "ED Sciences Numériques",
+                "partner_expected": "Laboratoire académique identifié",
+                "remote_or_hybrid": "Hybride possible",
+                "funding_status": "Demande CIFRE à déposer",
+                "cifre_status": "Montage en cours",
+                "contact_visible": True,
                 "application_deadline": "2026-09-30",
             },
             url="https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/123",
@@ -653,7 +660,18 @@ def test_exports_include_anrt_source_specific_fields(tmp_path: Path) -> None:
     assert "- Source : ANRT entreprise" in markdown
     assert "- Entreprise : Acme Research" in markdown
     assert "- Laboratoire source : Laboratoire IA Appliquée" in markdown
-    assert "company,source_laboratory,sector,application_deadline" in csv_text
+    assert "- Discipline : Informatique" in markdown
+    assert "- École doctorale : ED Sciences Numériques" in markdown
+    assert "- Partenaire attendu : Laboratoire académique identifié" in markdown
+    assert "- Télétravail / hybride : Hybride possible" in markdown
+    assert "- Statut financement : Demande CIFRE à déposer" in markdown
+    assert "- Statut CIFRE : Montage en cours" in markdown
+    assert "- Contact visible : oui" in markdown
+    assert "company,source_laboratory,sector,discipline,doctoral_school" in csv_text
+    assert (
+        "partner_expected,remote_or_hybrid,funding_status,cifre_status,contact_visible"
+        in csv_text
+    )
 
 
 def test_source_specific_round_trip_and_source_filter(tmp_path: Path) -> None:
