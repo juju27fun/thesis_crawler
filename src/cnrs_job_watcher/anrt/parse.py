@@ -24,6 +24,24 @@ def parse_anrt_list_page(html: str, kind: AnrtKind) -> list[str]:
     return urls
 
 
+def parse_anrt_pagination_urls(html: str) -> list[str]:
+    _ensure_not_logged_out(html)
+    soup = BeautifulSoup(html, "html.parser")
+    urls: list[str] = []
+    seen: set[str] = set()
+
+    for anchor in soup.select("a[href]"):
+        href = anchor.get("href", "").strip()
+        if not _looks_like_pagination_href(anchor, href):
+            continue
+        url = _absolute_url(href)
+        if url in seen:
+            continue
+        seen.add(url)
+        urls.append(url)
+    return urls
+
+
 def parse_anrt_offer_detail(html: str, url: str, kind: AnrtKind) -> JobOffer:
     _ensure_not_logged_out(html)
     soup = BeautifulSoup(html, "html.parser")
@@ -107,6 +125,24 @@ def _looks_like_offer_href(href: str) -> bool:
         or "fiche" in normalized
         or "/offre/" in normalized
         or "/offre-detail/" in normalized
+    )
+
+
+def _looks_like_pagination_href(anchor: object, href: str) -> bool:
+    normalized = href.lower()
+    if not normalized or normalized.startswith("#"):
+        return False
+    if _looks_like_offer_href(href):
+        return False
+    text = anchor.get_text(" ", strip=True).lower() if hasattr(anchor, "get_text") else ""
+    rel = " ".join(anchor.get("rel", [])) if hasattr(anchor, "get") else ""
+    classes = " ".join(anchor.get("class", [])) if hasattr(anchor, "get") else ""
+    return (
+        "offre-list" in normalized
+        or "page=" in normalized
+        or rel.lower() == "next"
+        or "next" in classes.lower()
+        or text in {"suivant", "next", ">", "›", "»"}
     )
 
 

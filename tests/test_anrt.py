@@ -6,7 +6,11 @@ import pytest
 
 from cnrs_job_watcher.anrt.fetch import AnrtAuthenticationRequired, AnrtFixtureClient, AnrtKind
 from cnrs_job_watcher.anrt.fixtures import anonymize_fixture_tree, anonymize_html
-from cnrs_job_watcher.anrt.parse import parse_anrt_list_page, parse_anrt_offer_detail
+from cnrs_job_watcher.anrt.parse import (
+    parse_anrt_list_page,
+    parse_anrt_offer_detail,
+    parse_anrt_pagination_urls,
+)
 from cnrs_job_watcher.classify import apply_classification
 from cnrs_job_watcher.sources import AnrtSourceAdapter, source_definition
 
@@ -64,6 +68,21 @@ def test_parse_anrt_list_page_extracts_detail_urls_only() -> None:
     ]
 
 
+def test_parse_anrt_pagination_urls_extracts_next_pages() -> None:
+    html = """
+    <nav class="pagination">
+      <a href="/espace-membre/offre-list/entreprise?page=2" rel="next">Suivant</a>
+      <a href="/espace-membre/offre-detail/999">Offre à ignorer</a>
+    </nav>
+    """
+
+    expected = (
+        "https://offres-et-candidatures-cifre.anrt.asso.fr"
+        "/espace-membre/offre-list/entreprise?page=2"
+    )
+    assert parse_anrt_pagination_urls(html) == [expected]
+
+
 def test_parse_anrt_detail_maps_to_common_job_offer() -> None:
     offer = parse_anrt_offer_detail(
         ANRT_DETAIL_HTML,
@@ -114,6 +133,9 @@ def test_anrt_source_adapter_deduplicates_both_kinds_and_preserves_kind_for_deta
         def fetch_list_page(self, kind: AnrtKind, use_cache: bool = True) -> str:
             return ANRT_LIST_HTML
 
+        def fetch_list_url(self, url: str, use_cache: bool = True) -> str:
+            return "<html><body></body></html>"
+
         def fetch_offer_page(self, url: str, use_cache: bool = True) -> str:
             return ANRT_DETAIL_HTML
 
@@ -157,6 +179,37 @@ def test_anrt_fixture_client_runs_adapter_end_to_end() -> None:
     assert offers[0].published_at_text is None
     assert offers[1].target_bucket == "adjacent_review"
     assert offers[1].source_specific["anrt_kind"] == "laboratoire"
+
+
+def test_anrt_fixture_client_follows_paginated_list_pages(tmp_path: Path) -> None:
+    fixture_dir = tmp_path / "anrt"
+    (fixture_dir / "list").mkdir(parents=True)
+    (fixture_dir / "detail").mkdir()
+    (fixture_dir / "list" / "entreprise.html").write_text(
+        """
+        <html><body>
+          <a href="/espace-membre/offre-detail/123">Offre 1</a>
+          <a href="/espace-membre/offre-list/entreprise?page=2" rel="next">Suivant</a>
+        </body></html>
+        """,
+        encoding="utf-8",
+    )
+    (fixture_dir / "list" / "laboratoire.html").write_text("<html><body></body></html>")
+    (fixture_dir / "list" / "espace-membre-offre-list-entreprise-page-2.html").write_text(
+        """
+        <html><body>
+          <a href="/espace-membre/offre-detail/456">Offre 2</a>
+        </body></html>
+        """,
+        encoding="utf-8",
+    )
+
+    adapter = AnrtSourceAdapter(AnrtFixtureClient(fixture_dir), kind=AnrtKind.ENTREPRISE)
+
+    assert adapter.discover_urls(use_cache=False) == [
+        "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/123",
+        "https://offres-et-candidatures-cifre.anrt.asso.fr/espace-membre/offre-detail/456",
+    ]
 
 
 def test_anrt_fixture_anonymizer_masks_contact_details(tmp_path: Path) -> None:

@@ -12,6 +12,7 @@ multi-source. Le projet peut :
 - lancer `--source all`, qui continue CNRS même si ANRT est déconnecté ;
 - parser et classifier des fixtures ANRT entreprise/laboratoire ;
 - crawler un dossier fixture ANRT anonymisé avec le même pipeline que le réseau ;
+- suivre les liens de pagination HTML des listes ANRT avec une limite de sécurité ;
 - évaluer un dataset ANRT synthétique ;
 - exporter une provenance lisible et des champs CIFRE spécifiques.
 
@@ -30,6 +31,7 @@ fixtures anonymisées issues du HTML réel.
 - Module `cnrs_job_watcher.anrt.fetch`
 - Module `cnrs_job_watcher.anrt.parse`
 - `AnrtSourceAdapter`
+- découverte paginée via liens `rel=next`, `Suivant`, `page=` ou `offre-list` ;
 - `SourceDefinition` / `SOURCE_REGISTRY`
 - Migration SQLite non destructive des runs :
   - `source`
@@ -86,6 +88,7 @@ Résultats observés :
 - `--source all` sans session ANRT : CNRS traité, ANRT signalé `auth_required`.
 - mode fixture ANRT : 2 offres traitées, 0 erreur, buckets `primary_target` et `adjacent_review`.
 - export fixture ANRT : provenance entreprise/laboratoire et date limite affichées.
+- tests de pagination fixture : une deuxième page liste est suivie et dédupliquée.
 
 ## Reste à faire pour compléter le plan
 

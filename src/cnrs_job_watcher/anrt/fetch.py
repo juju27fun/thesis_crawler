@@ -58,11 +58,15 @@ class AnrtClient:
     def fetch_list_page(self, kind: AnrtKind, use_cache: bool = True) -> str:
         if kind == AnrtKind.BOTH:
             raise ValueError("fetch_list_page expects entreprise or laboratoire, not both")
-        cache_path = self.cache_dir / "anrt" / "list" / f"{kind.value}.html"
+        url = f"{ANRT_BASE_URL}/espace-membre/offre-list/{kind.value}"
+        return self.fetch_list_url(url, use_cache=use_cache)
+
+    def fetch_list_url(self, url: str, use_cache: bool = True) -> str:
+        cache_path = self.list_cache_path(url)
         if use_cache and cache_path.exists():
             return cache_path.read_text(encoding="utf-8")
 
-        response = self._request("GET", f"{ANRT_BASE_URL}/espace-membre/offre-list/{kind.value}")
+        response = self._request("GET", url)
         html = response.text
         if is_logged_out_page(html, str(response.url)):
             raise AnrtAuthenticationRequired(
@@ -71,6 +75,10 @@ class AnrtClient:
         _write_snapshot(cache_path, html)
         time.sleep(self.delay_seconds)
         return html
+
+    def list_cache_path(self, url: str) -> Path:
+        filename = f"{slugify(url.replace(ANRT_BASE_URL, ''))}.html"
+        return self.cache_dir / "anrt" / "list" / filename
 
     def fetch_offer_page(self, url: str, use_cache: bool = True) -> str:
         cache_path = self.offer_cache_path(url)
@@ -190,6 +198,13 @@ class AnrtFixtureClient:
             raise FileNotFoundError(f"ANRT fixture list page not found: {path}")
         return path.read_text(encoding="utf-8")
 
+    def fetch_list_url(self, url: str, use_cache: bool = True) -> str:
+        del use_cache
+        path = self.list_cache_path(url)
+        if not path.exists():
+            raise FileNotFoundError(f"ANRT fixture list page not found: {path}")
+        return path.read_text(encoding="utf-8")
+
     def fetch_offer_page(self, url: str, use_cache: bool = True) -> str:
         del use_cache
         path = self.offer_cache_path(url)
@@ -200,3 +215,7 @@ class AnrtFixtureClient:
     def offer_cache_path(self, url: str) -> Path:
         filename = f"{slugify(url.replace(ANRT_BASE_URL, ''))}.html"
         return self.fixture_dir / "detail" / filename
+
+    def list_cache_path(self, url: str) -> Path:
+        filename = f"{slugify(url.replace(ANRT_BASE_URL, ''))}.html"
+        return self.fixture_dir / "list" / filename

@@ -4,7 +4,11 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from cnrs_job_watcher.anrt.fetch import AnrtClient, AnrtKind
-from cnrs_job_watcher.anrt.parse import parse_anrt_list_page, parse_anrt_offer_detail
+from cnrs_job_watcher.anrt.parse import (
+    parse_anrt_list_page,
+    parse_anrt_offer_detail,
+    parse_anrt_pagination_urls,
+)
 from cnrs_job_watcher.fetch import CnrsClient
 from cnrs_job_watcher.parse import parse_list_page, parse_offer_detail
 from cnrs_job_watcher.schemas import JobOffer, ListPageStats
@@ -90,9 +94,15 @@ class CnrsSourceAdapter:
 class AnrtSourceAdapter:
     source = "anrt"
 
-    def __init__(self, client: AnrtClient, kind: AnrtKind = AnrtKind.BOTH) -> None:
+    def __init__(
+        self,
+        client: AnrtClient,
+        kind: AnrtKind = AnrtKind.BOTH,
+        max_list_pages: int = 50,
+    ) -> None:
         self.client = client
         self.kind = kind
+        self.max_list_pages = max_list_pages
         self._detail_kinds: dict[str, AnrtKind] = {}
 
     def discover(
@@ -107,13 +117,28 @@ class AnrtSourceAdapter:
         urls: list[str] = []
         seen: set[str] = set()
         for kind in self._kinds_to_fetch():
-            html = self.client.fetch_list_page(kind, use_cache=use_cache)
-            for url in parse_anrt_list_page(html, kind):
-                if url in seen:
+            pages_seen: set[str] = set()
+            queued_pages: list[str | None] = [None]
+            while queued_pages and len(pages_seen) < self.max_list_pages:
+                page_url = queued_pages.pop(0)
+                page_key = page_url or f"kind:{kind.value}"
+                if page_key in pages_seen:
                     continue
-                seen.add(url)
-                self._detail_kinds[url] = kind
-                urls.append(url)
+                pages_seen.add(page_key)
+                html = (
+                    self.client.fetch_list_page(kind, use_cache=use_cache)
+                    if page_url is None
+                    else self.client.fetch_list_url(page_url, use_cache=use_cache)
+                )
+                for url in parse_anrt_list_page(html, kind):
+                    if url in seen:
+                        continue
+                    seen.add(url)
+                    self._detail_kinds[url] = kind
+                    urls.append(url)
+                for next_url in parse_anrt_pagination_urls(html):
+                    if next_url not in pages_seen and next_url not in queued_pages:
+                        queued_pages.append(next_url)
         return urls
 
     def fetch_detail(self, url: str, use_cache: bool = True) -> str:
